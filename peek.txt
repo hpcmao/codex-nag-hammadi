@@ -1,0 +1,12 @@
+--- Peeking Gnose Nag Hammadi.pdf ---
+HEADER:
+b'%PDF-1.6\r%\xe2\xe3\xcf\xd3\r\n2397 0 obj\r<</Filter/FlateDecode/First 634/Length 1271/N 65/Type/ObjStm>>stream\r\nh\xde\xec'
+Tail %%EOF count: 1
+No /Linearized dictionary found
+
+--- Peeking codex-nag-hammadi.pdf ---
+HEADER:
+b'%PDF-1.7\n%\xe2\xe3\xcf\xd3\n2 0 obj\n<<\n/Type /Catalog\n/Pages 4 0 R\n/MarkInfo <<\n/Marked true\n>>\n/Metadata 5 0 R\n/'
+Tail %%EOF count: 1
+No /Linearized dictionary found
+

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\*.pdf\")",
+      "WebFetch(domain:github.com)",
+      "Bash(node --version)",
+      "Bash(winget install:*)",
+      "Bash(npm --version:*)",
+      "Skill(bmad:core:workflows:brainstorming)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\*bmad*\")",
+      "Bash(dir /s /b \"C:\\\\Users\\\\hpcmao\\\\*_bmad*\")",
+      "Bash(findstr:*)",
+      "WebSearch",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

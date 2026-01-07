@@ -1,0 +1,83 @@
+# BMM Workflow Status - codex-nag-hammadi
+# Generated: 2026-01-07
+# Track: BMad Method (Greenfield)
+
+project: "codex-nag-hammadi"
+project_type: "software"
+selected_track: "bmad-method"
+field_type: "greenfield"
+workflow_path: "method-greenfield.yaml"
+
+# Project Description
+description: |
+  Convertir les PDFs du Codex Nag Hammadi en Markdown (tableaux ASCII/Excel),
+  transformer les textes en prompts optimisés pour Imagen/Veo 3 (Google Cloud API),
+  générer des planches BD avec textes de référence.
+
+  Interface GUI C++:
+  - Champ central: prévisualisation des textes Codex sélectionnés avant génération
+  - Mode Diaporama/Viewer: affichage progressif des images générées
+  - Audio synchronisé: Edge TTS (gratuit, haute qualité) pour narration
+  - Export optionnel: conversion en vidéos HD via Veo 3
+
+# Discovery selections
+discovery:
+  brainstorm: pending
+  research: skipped
+  product_brief: skipped
+
+# Workflow Status Tracking
+workflow_status:
+  # Phase 1: Analysis (Optional)
+  phase_1_analysis:
+    brainstorm:
+      status: pending
+      agent: analyst
+      command: "/bmad:core:workflows:brainstorming"
+      output: null
+
+  # Phase 2: Planning
+  phase_2_planning:
+    prd:
+      status: required
+      agent: pm
+      command: "/bmad:bmm:workflows:create-prd"
+      output: null
+    ux_design:
+      status: conditional
+      condition: "if_has_ui"
+      agent: ux-designer
+      command: "/bmad:bmm:workflows:create-ux-design"
+      output: null
+
+  # Phase 3: Solutioning
+  phase_3_solutioning:
+    architecture:
+      status: required
+      agent: architect
+      command: "/bmad:bmm:workflows:create-architecture"
+      output: null
+    epics_and_stories:
+      status: required
+      agent: pm
+      command: "/bmad:bmm:workflows:create-epics-and-stories"
+      output: null
+    test_design:
+      status: optional
+      agent: tea
+      command: "/bmad:bmm:workflows:testarch-test-design"
+      output: null
+    implementation_readiness:
+      status: required
+      agent: architect
+      command: "/bmad:bmm:workflows:check-implementation-readiness"
+      output: null
+
+  # Phase 4: Implementation
+  phase_4_implementation:
+    sprint_planning:
+      status: required
+      agent: sm
+      command: "/bmad:bmm:workflows:sprint-planning"
+      output: null
+      note: "Creates sprint-status.yaml for detailed implementation tracking"

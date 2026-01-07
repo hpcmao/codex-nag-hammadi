@@ -1,0 +1,16 @@
+File: Gnose Nag Hammadi.pdf
+  Size: 1,871,607 bytes
+  Objects: 776
+  Streams: 1550
+  Fonts occurrences: 2
+  Images occurrences: 0
+  XObject occurrences: 0
+----------------------------------------
+File: codex-nag-hammadi.pdf
+  Size: 2,491,930 bytes
+  Objects: 897
+  Streams: 1792
+  Fonts occurrences: 2
+  Images occurrences: 0
+  XObject occurrences: 0
+----------------------------------------
