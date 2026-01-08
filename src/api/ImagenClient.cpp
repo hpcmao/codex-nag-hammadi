@@ -2,6 +2,7 @@
 #include "utils/Logger.h"
 
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonArray>
 #include <QBuffer>
 

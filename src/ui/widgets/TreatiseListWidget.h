@@ -5,9 +5,9 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QMap>
+#include "core/services/TextParser.h"
 
 namespace codex::core {
-struct TreatiseInfo;
 class MythicClassifier;
 }
 
