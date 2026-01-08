@@ -1,0 +1,41 @@
+{
+  "villeneuve_base": {
+    "description": "Template de base style Denis Villeneuve",
+    "keywords": [
+      "Cinematic",
+      "photoreal",
+      "Denis Villeneuve style",
+      "dramatic lighting",
+      "desaturated colors",
+      "monumental scale",
+      "contemplative atmosphere",
+      "epic wide shot",
+      "16:9 aspect ratio"
+    ]
+  },
+  "references": {
+    "dune": {
+      "keywords": ["desert monumentality", "golden sand dunes", "harsh sunlight", "epic scale"],
+      "use_for": ["Démiurge", "Ascension"]
+    },
+    "arrival": {
+      "keywords": ["mysterious fog", "alien presence", "soft diffused light", "intimate scale"],
+      "use_for": ["Sophia", "Plérôme"]
+    },
+    "blade_runner_2049": {
+      "keywords": ["neon glow", "dystopian atmosphere", "rain and fog", "melancholy"],
+      "use_for": ["Archontes", "Gnose"]
+    }
+  },
+  "prompt_structure": {
+    "order": [
+      "scene_description",
+      "villeneuve_base",
+      "category_keywords",
+      "lighting_style",
+      "color_palette",
+      "emotional_tone"
+    ],
+    "separator": ", "
+  }
+}

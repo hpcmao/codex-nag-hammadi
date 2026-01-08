@@ -1,0 +1,76 @@
+{
+  "categories": {
+    "Plerome": {
+      "name": "Plérôme",
+      "description": "Lumière divine primordiale",
+      "palette": ["#FFD700", "#FFFFFF", "#4169E1"],
+      "visual_keywords": ["infinite light", "cosmic void", "golden radiance", "ethereal"],
+      "lighting_style": "Diffuse golden light",
+      "treatises": ["I-5", "III-3", "V-1", "XI-2", "X", "VIII-1", "XI-3"]
+    },
+    "Sophia": {
+      "name": "Sophia",
+      "description": "Chute tragique",
+      "palette": ["#191970", "#C0C0C0", "#4682B4"],
+      "visual_keywords": ["weeping figure", "falling light", "blue tears", "melancholy"],
+      "lighting_style": "Contre-jour, blue moonlight",
+      "treatises": ["II-4", "II-5", "XIII-2", "VI-2", "II-6", "IX-2", "XIII-1"]
+    },
+    "Demiurge": {
+      "name": "Démiurge",
+      "description": "Création matérielle",
+      "palette": ["#8B0000", "#000000", "#2F4F4F"],
+      "visual_keywords": ["dark ruler", "fire and shadow", "oppressive", "lion-headed"],
+      "lighting_style": "Harsh red firelight",
+      "treatises": ["II-1", "III-1", "IV-1", "III-2", "IV-2", "VII-1", "VI-4"]
+    },
+    "Gnosis": {
+      "name": "Gnose",
+      "description": "Révélation",
+      "palette": ["#DAA520", "#F5DEB3", "#FFD700"],
+      "visual_keywords": ["revelation", "secret teaching", "illumination", "intimate"],
+      "lighting_style": "Single ray piercing darkness",
+      "treatises": ["II-2", "II-3", "I-3", "XII-2", "III-4", "III-5", "I-2", "II-7", "VII-4", "XII-1"]
+    },
+    "Ascension": {
+      "name": "Ascension",
+      "description": "Retour céleste",
+      "palette": ["#FFD700", "#FFFAFA", "#E6E6FA"],
+      "visual_keywords": ["ascending", "transparent", "celestial journey", "liberation"],
+      "lighting_style": "Ascending golden light",
+      "treatises": ["V-2", "V-3", "V-4", "V-5", "VII-3", "IX-1", "I-4", "VII-5"]
+    },
+    "Liturgy": {
+      "name": "Liturgie",
+      "description": "Prières et invocations",
+      "palette": ["#E6E6FA", "#FFD700", "#FFFAF0"],
+      "visual_keywords": ["prayer", "invocation", "sacred", "devotion"],
+      "lighting_style": "Focused divine light",
+      "treatises": ["I-1", "VI-7", "XI-2b"]
+    },
+    "Hermetic": {
+      "name": "Hermétique",
+      "description": "Philosophie mixte",
+      "palette": ["#808080", "#D3D3D3", "#A9A9A9"],
+      "visual_keywords": ["philosophical", "balanced", "intellectual", "neutral"],
+      "lighting_style": "Balanced natural light",
+      "treatises": ["VI-6", "VI-8", "VI-5", "VI-3", "IX-3", "XI-1"]
+    },
+    "Narrative": {
+      "name": "Narratif",
+      "description": "Récits apostoliques",
+      "palette": ["#8B4513", "#DEB887", "#D2B48C"],
+      "visual_keywords": ["journey", "apostolic", "earthly", "human scale"],
+      "lighting_style": "Natural daylight",
+      "treatises": ["VI-1", "VIII-2", "VII-2"]
+    },
+    "Fragments": {
+      "name": "Fragments",
+      "description": "Textes incomplets",
+      "palette": ["#696969", "#A9A9A9", "#778899"],
+      "visual_keywords": ["incomplete", "mysterious", "fragmentary"],
+      "lighting_style": "Dim, uncertain light",
+      "treatises": ["XI-4", "XII-3"]
+    }
+  }
+}

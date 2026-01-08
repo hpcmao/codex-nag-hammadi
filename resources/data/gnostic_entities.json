@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "Plerome": {
+      "description": "Plenitude divine, totalite des emanations",
+      "keywords": ["plerome", "plenitude", "totalite", "pleroma"],
+      "visual_keywords": ["infinite light", "cosmic void", "golden radiance", "divine fullness"],
+      "palette": ["#FFD700", "#FFFFFF", "#4169E1"]
+    },
+    "Eons": {
+      "description": "Emanations divines, entites celestes",
+      "keywords": ["eon", "eons", "aion", "aiones", "aeon"],
+      "visual_keywords": ["luminous beings", "ethereal figures", "light forms", "celestial entities"],
+      "palette": ["#E6E6FA", "#FFD700", "#87CEEB"]
+    },
+    "Sophia": {
+      "description": "Sagesse divine, figure feminine tragique",
+      "keywords": ["sophia", "sagesse", "pistis", "pistis sophia", "achamoth"],
+      "visual_keywords": ["weeping figure", "falling light", "blue tears", "tragic beauty"],
+      "palette": ["#191970", "#C0C0C0", "#4682B4"]
+    },
+    "Archontes": {
+      "description": "Dirigeants du monde materiel, forces hostiles",
+      "keywords": ["archonte", "archontes", "dirigeant", "puissance", "gouverneur"],
+      "visual_keywords": ["dark rulers", "shadowy figures", "oppressive presence", "cosmic tyrants"],
+      "palette": ["#8B0000", "#000000", "#2F4F4F"]
+    },
+    "Demiurge": {
+      "description": "Createur du monde materiel, Yaldabaoth",
+      "keywords": ["demiurge", "yaldabaoth", "saklas", "samael", "createur ignorant", "ialdabaoth"],
+      "visual_keywords": ["lion-headed serpent", "fire and darkness", "throne of ignorance", "blind god"],
+      "palette": ["#B22222", "#000000", "#CD853F"]
+    },
+    "Christ": {
+      "description": "Figure de redemption, porteur de gnose",
+      "keywords": ["christ", "sauveur", "jesus", "seigneur", "messie", "oint"],
+      "visual_keywords": ["radiant figure", "descending light", "gentle illumination", "divine messenger"],
+      "palette": ["#FFFAF0", "#FFD700", "#F0E68C"]
+    },
+    "Pere": {
+      "description": "Le Dieu inconnaissable, source de tout",
+      "keywords": ["pere", "ineffable", "inconnaissable", "premier", "invisible", "abime"],
+      "visual_keywords": ["invisible presence", "absolute light", "transcendent", "infinite depth"],
+      "palette": ["#FFFFFF", "#FFFFF0", "#F5F5F5"]
+    },
+    "Esprit": {
+      "description": "L'Esprit Saint, souffle divin",
+      "keywords": ["esprit", "souffle", "pneuma", "paraclet", "saint esprit"],
+      "visual_keywords": ["breath of light", "flowing energy", "invisible wind", "divine breath"],
+      "palette": ["#E0FFFF", "#B0E0E6", "#ADD8E6"]
+    },
+    "Lumiere": {
+      "description": "Symbole du divin, de la connaissance",
+      "keywords": ["lumiere", "lumineux", "clarte", "brillant", "resplendissant", "eclat"],
+      "visual_keywords": ["radiant beams", "golden glow", "illumination", "divine light"],
+      "palette": ["#FFD700", "#FFFF00", "#FFFACD"]
+    },
+    "Tenebres": {
+      "description": "Ignorance, monde materiel, mal",
+      "keywords": ["tenebres", "obscurite", "noir", "ombre", "nuit"],
+      "visual_keywords": ["deep shadows", "void", "darkness", "abyssal depths"],
+      "palette": ["#000000", "#1C1C1C", "#363636"]
+    },
+    "Gnose": {
+      "description": "Connaissance salvifique, revelation",
+      "keywords": ["gnose", "connaissance", "savoir", "revelation", "illumination"],
+      "visual_keywords": ["secret wisdom", "hidden truth", "enlightenment", "inner vision"],
+      "palette": ["#DAA520", "#F5DEB3", "#FFD700"]
+    },
+    "Adam": {
+      "description": "Premier homme, archetype humain",
+      "keywords": ["adam", "premier homme", "anthropos", "homme primordial"],
+      "visual_keywords": ["primordial man", "clay figure", "awakening consciousness", "divine spark"],
+      "palette": ["#8B4513", "#DEB887", "#D2B48C"]
+    },
+    "Eve": {
+      "description": "Premiere femme, porteuse de vie",
+      "keywords": ["eve", "femme", "mere", "vie", "zoe"],
+      "visual_keywords": ["mother figure", "giver of life", "feminine wisdom", "serpent companion"],
+      "palette": ["#228B22", "#90EE90", "#98FB98"]
+    },
+    "Seth": {
+      "description": "Fils d'Adam, ancetre des gnostiques",
+      "keywords": ["seth", "troisieme fils", "race de seth", "sethien"],
+      "visual_keywords": ["chosen seed", "spiritual lineage", "pure descendant", "guardian figure"],
+      "palette": ["#4682B4", "#5F9EA0", "#6495ED"]
+    },
+    "Barbelo": {
+      "description": "Premier eon feminin, pensee du Pere",
+      "keywords": ["barbelo", "premiere pensee", "protennoia", "ennoia"],
+      "visual_keywords": ["divine feminine", "first thought", "mirror of light", "mother of all"],
+      "palette": ["#DDA0DD", "#EE82EE", "#DA70D6"]
+    },
+    "Autogene": {
+      "description": "Le fils auto-engendre, Christ celeste",
+      "keywords": ["autogene", "auto-engendre", "fils unique", "monogene"],
+      "visual_keywords": ["self-born light", "divine emanation", "perfect son", "eternal child"],
+      "palette": ["#FAFAD2", "#FFE4B5", "#FFEFD5"]
+    },
+    "Norea": {
+      "description": "Femme de Noe, figure salvatrice",
+      "keywords": ["norea", "femme de noe", "vierge", "incorruptible"],
+      "visual_keywords": ["righteous woman", "fire resistant", "divine protection", "spiritual purity"],
+      "palette": ["#FF6347", "#FF7F50", "#FFA07A"]
+    },
+    "Sabaoth": {
+      "description": "Archonte repenti, fils du Demiurge",
+      "keywords": ["sabaoth", "repenti", "converti", "trone"],
+      "visual_keywords": ["converted ruler", "throne of glory", "celestial warrior", "redeemed power"],
+      "palette": ["#4169E1", "#6A5ACD", "#7B68EE"]
+    },
+    "Pronoia": {
+      "description": "Providence divine, pensee anticipatrice",
+      "keywords": ["pronoia", "providence", "prescience", "prevoyance"],
+      "visual_keywords": ["all-seeing eye", "divine plan", "foreknowledge", "guiding light"],
+      "palette": ["#9370DB", "#BA55D3", "#9932CC"]
+    },
+    "Logos": {
+      "description": "Parole divine, principe createur",
+      "keywords": ["logos", "verbe", "parole", "raison divine"],
+      "visual_keywords": ["spoken light", "creative word", "divine reason", "cosmic order"],
+      "palette": ["#F0E68C", "#EEE8AA", "#BDB76B"]
+    },
+    "Pneumatique": {
+      "description": "Etre spirituel, porteur de l'etincelle",
+      "keywords": ["pneumatique", "spirituel", "elu", "semence"],
+      "visual_keywords": ["spiritual being", "inner spark", "chosen soul", "light carrier"],
+      "palette": ["#87CEEB", "#87CEFA", "#00BFFF"]
+    },
+    "Psychique": {
+      "description": "Etre d'ame, entre matiere et esprit",
+      "keywords": ["psychique", "animique", "ame"],
+      "visual_keywords": ["soul being", "middle nature", "potential vessel", "undecided"],
+      "palette": ["#DDA0DD", "#D8BFD8", "#E6E6FA"]
+    },
+    "Hylique": {
+      "description": "Etre materiel, prisonnier de la chair",
+      "keywords": ["hylique", "materiel", "charnel", "terrestre"],
+      "visual_keywords": ["material being", "earthbound", "dense form", "unconscious"],
+      "palette": ["#8B4513", "#A0522D", "#6B4423"]
+    },
+    "Ogdoade": {
+      "description": "Huitieme sphere, region celeste",
+      "keywords": ["ogdoade", "huit", "huitieme", "sphere superieure"],
+      "visual_keywords": ["eighth heaven", "starry realm", "cosmic boundary", "celestial sphere"],
+      "palette": ["#000080", "#191970", "#00008B"]
+    }
+  }
+}

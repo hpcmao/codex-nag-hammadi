@@ -22,9 +22,9 @@ description: |
 
 # Discovery selections
 discovery:
-  brainstorm: pending
+  brainstorm: completed
   research: skipped
-  product_brief: skipped
+  product_brief: completed
 
 # Workflow Status Tracking
 workflow_status:
@@ -39,10 +39,10 @@ workflow_status:
   # Phase 2: Planning
   phase_2_planning:
     prd:
-      status: required
+      status: completed
       agent: pm
       command: "/bmad:bmm:workflows:create-prd"
-      output: null
+      output: "_bmad-output/planning-artifacts/prd.md"
     ux_design:
       status: conditional
       condition: "if_has_ui"
@@ -53,15 +53,15 @@ workflow_status:
   # Phase 3: Solutioning
   phase_3_solutioning:
     architecture:
-      status: required
+      status: completed
       agent: architect
       command: "/bmad:bmm:workflows:create-architecture"
-      output: null
+      output: "_bmad-output/planning-artifacts/architecture.md"
     epics_and_stories:
-      status: required
+      status: completed
       agent: pm
       command: "/bmad:bmm:workflows:create-epics-and-stories"
-      output: null
+      output: "_bmad-output/planning-artifacts/epics-and-stories.md"
     test_design:
       status: optional
       agent: tea

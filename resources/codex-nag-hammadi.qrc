@@ -1,0 +1,8 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/">
+        <file>data/gnostic_entities.json</file>
+        <file>data/mythic_categories.json</file>
+        <file>data/style_templates.json</file>
+    </qresource>
+</RCC>
