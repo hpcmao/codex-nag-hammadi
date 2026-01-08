@@ -107,6 +107,27 @@ void PassagePreviewWidget::setupUi() {
     connect(m_generateAudioBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onGenerateAudio);
     buttonLayout->addWidget(m_generateAudioBtn);
 
+    m_generateVideoBtn = new QPushButton("Generer Video", this);
+    m_generateVideoBtn->setEnabled(false);
+    m_generateVideoBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #6a3d9a;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+        }
+        QPushButton:hover {
+            background-color: #7d4db3;
+        }
+        QPushButton:disabled {
+            background-color: #3d3d3d;
+            color: #666;
+        }
+    )");
+    connect(m_generateVideoBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onGenerateVideo);
+    buttonLayout->addWidget(m_generateVideoBtn);
+
     buttonLayout->addStretch();
     mainLayout->addLayout(buttonLayout);
 
@@ -132,6 +153,7 @@ void PassagePreviewWidget::setPassage(const QString& text, int startPos, int end
     bool valid = text.length() >= 20;
     m_generateImageBtn->setEnabled(valid);
     m_generateAudioBtn->setEnabled(valid);
+    m_generateVideoBtn->setEnabled(valid);
 
     if (valid) {
         LOG_INFO(QString("Passage selected: %1 chars, %2 words")
@@ -149,6 +171,7 @@ void PassagePreviewWidget::clear() {
     m_positionLabel->clear();
     m_generateImageBtn->setEnabled(false);
     m_generateAudioBtn->setEnabled(false);
+    m_generateVideoBtn->setEnabled(false);
 }
 
 void PassagePreviewWidget::updateStats() {
@@ -168,6 +191,12 @@ void PassagePreviewWidget::onGenerateImage() {
 void PassagePreviewWidget::onGenerateAudio() {
     if (!m_passage.isEmpty()) {
         emit generateAudioRequested(m_passage);
+    }
+}
+
+void PassagePreviewWidget::onGenerateVideo() {
+    if (!m_passage.isEmpty()) {
+        emit generateVideoRequested(m_passage);
     }
 }
 

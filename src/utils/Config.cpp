@@ -28,13 +28,21 @@ bool Config::load() {
         // Create default config
         m_config = QJsonObject{
             {"apis", QJsonObject{
+                {"llm_provider", "claude"},  // "claude" or "gemini"
                 {"claude", QJsonObject{
                     {"model", "claude-sonnet-4-20250514"},
                     {"max_tokens", 1000}
                 }},
+                {"gemini", QJsonObject{
+                    {"model", "gemini-2.0-flash"}
+                }},
                 {"imagen", QJsonObject{
                     {"model", "imagen-3.0-generate-001"},
                     {"aspect_ratio", "16:9"}
+                }},
+                {"veo", QJsonObject{
+                    {"model", "veo-2.0-generate-001"},
+                    {"duration_seconds", 5}
                 }},
                 {"elevenlabs", QJsonObject{
                     {"model_id", "eleven_multilingual_v2"},
@@ -106,6 +114,24 @@ void Config::setElevenLabsVoiceId(const QString& voiceId) {
     elevenlabs["voice_id"] = voiceId;
     apis["elevenlabs"] = elevenlabs;
     m_config["apis"] = apis;
+    save();
+}
+
+QString Config::llmProvider() const {
+    return m_config["apis"].toObject()["llm_provider"].toString("claude");
+}
+
+void Config::setLlmProvider(const QString& provider) {
+    QJsonObject apis = m_config["apis"].toObject();
+    apis["llm_provider"] = provider;
+    m_config["apis"] = apis;
+    save();
+}
+
+void Config::setOutputImagesPath(const QString& path) {
+    QJsonObject paths = m_config["paths"].toObject();
+    paths["output_images"] = path;
+    m_config["paths"] = paths;
     save();
 }
 

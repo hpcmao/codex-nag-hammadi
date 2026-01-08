@@ -16,7 +16,7 @@ public:
 private slots:
     void onSave();
     void onTestClaude();
-    void onTestImagen();
+    void onTestGoogleAI();
     void onTestElevenLabs();
 
 private:
@@ -26,9 +26,10 @@ private:
 
     // API Keys tab
     QLineEdit* m_claudeKeyEdit;
-    QLineEdit* m_imagenKeyEdit;
+    QLineEdit* m_googleAiKeyEdit;  // Shared key for Gemini, Imagen, Veo
     QLineEdit* m_elevenLabsKeyEdit;
     QComboBox* m_voiceCombo;
+    QComboBox* m_llmProviderCombo;  // Claude vs Gemini
 
     // Paths tab
     QLineEdit* m_codexPathEdit;

@@ -3,7 +3,9 @@
 add_library(codex_api STATIC
     ApiClient.cpp
     ClaudeClient.cpp
+    GeminiClient.cpp
     ImagenClient.cpp
+    VeoClient.cpp
     ElevenLabsClient.cpp
 )
 

@@ -11,6 +11,7 @@
 #include "db/repositories/ImageRepository.h"
 #include "db/repositories/AudioRepository.h"
 #include "api/ElevenLabsClient.h"
+#include "api/VeoClient.h"
 #include "core/services/TextParser.h"
 #include "core/controllers/PipelineController.h"
 #include "utils/Logger.h"
@@ -25,6 +26,7 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QFile>
+#include <QDir>
 #include <QMessageBox>
 #include <QToolBar>
 #include <QDateTime>
@@ -48,6 +50,12 @@ MainWindow::MainWindow(QWidget* parent)
     m_elevenLabsClient->setApiKey(
         codex::utils::SecureStorage::instance().getApiKey(
             codex::utils::SecureStorage::SERVICE_ELEVENLABS));
+
+    // Create Veo client for video generation
+    m_veoClient = new codex::api::VeoClient(this);
+    m_veoClient->setApiKey(
+        codex::utils::SecureStorage::instance().getApiKey(
+            codex::utils::SecureStorage::SERVICE_IMAGEN));  // Uses same key as Imagen
 
     setupUi();
     setupMenus();
@@ -219,6 +227,17 @@ void MainWindow::setupConnections() {
 
     connect(m_passagePreview, &PassagePreviewWidget::generateAudioRequested,
             this, &MainWindow::onGenerateAudioFromPreview);
+
+    connect(m_passagePreview, &PassagePreviewWidget::generateVideoRequested,
+            this, &MainWindow::onGenerateVideoFromPreview);
+
+    // Veo (video generation) signals
+    connect(m_veoClient, &codex::api::VeoClient::videoGenerated,
+            this, &MainWindow::onVideoGenerated);
+    connect(m_veoClient, &codex::api::VeoClient::generationProgress,
+            this, &MainWindow::onVideoProgress);
+    connect(m_veoClient, &codex::api::VeoClient::errorOccurred,
+            this, &MainWindow::onVideoError);
 
     // Pipeline controller signals
     connect(m_pipelineController, &codex::core::PipelineController::stateChanged,
@@ -518,6 +537,88 @@ void MainWindow::onAudioError(const QString& error) {
     statusBar()->showMessage(QString("Erreur audio: %1").arg(error));
     QMessageBox::critical(this, "Erreur de generation audio", error);
     LOG_ERROR(QString("Audio generation failed: %1").arg(error));
+}
+
+void MainWindow::onGenerateVideoFromPreview(const QString& passage) {
+    if (passage.isEmpty()) {
+        QMessageBox::warning(this, "Erreur", "Aucun passage selectionne pour la video.");
+        return;
+    }
+
+    // Check if API key is configured
+    QString apiKey = codex::utils::SecureStorage::instance().getApiKey(
+        codex::utils::SecureStorage::SERVICE_IMAGEN);
+    if (apiKey.isEmpty()) {
+        QMessageBox::warning(this, "Configuration requise",
+            "Veuillez configurer votre cle Google AI API dans les parametres.");
+        onShowSettings();
+        return;
+    }
+
+    statusBar()->showMessage("Generation video en cours (cela peut prendre plusieurs minutes)...");
+
+    // Create video prompt from passage
+    QString videoPrompt = QString(
+        "Cinematic slow motion shot, mystical ancient scene. "
+        "Divine light rays pierce through clouds. "
+        "Style of Denis Villeneuve, ethereal atmosphere. "
+        "Gnostic symbolism: %1"
+    ).arg(passage.left(200));
+
+    // Generate video
+    codex::api::VideoGenerationParams params;
+    params.prompt = videoPrompt;
+    params.aspectRatio = "16:9";
+    params.durationSeconds = 5;
+
+    m_veoClient->generateVideo(params);
+
+    LOG_INFO(QString("Video generation started for passage: %1 chars")
+             .arg(passage.length()));
+}
+
+void MainWindow::onVideoGenerated(const QByteArray& videoData, const QString& prompt) {
+    Q_UNUSED(prompt)
+
+    if (videoData.isEmpty()) {
+        QMessageBox::warning(this, "Erreur", "Les donnees video recues sont vides.");
+        return;
+    }
+
+    // Save video to output folder
+    QString outputPath = codex::utils::Config::instance().outputImagesPath();
+    QDir().mkpath(outputPath);  // Ensure directory exists
+    QString fileName = QString("codex_video_%1.mp4")
+        .arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
+    QString filePath = outputPath + "/" + fileName;
+
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(videoData);
+        file.close();
+
+        statusBar()->showMessage(QString("Video generee: %1").arg(filePath));
+        QMessageBox::information(this, "Video generee",
+            QString("La video a ete sauvegardee:\n%1\n\nTaille: %2 KB")
+                .arg(filePath)
+                .arg(videoData.size() / 1024));
+
+        LOG_INFO(QString("Video saved: %1 (%2 bytes)").arg(filePath).arg(videoData.size()));
+    } else {
+        QMessageBox::warning(this, "Erreur",
+            QString("Impossible de sauvegarder la video:\n%1").arg(filePath));
+        LOG_ERROR(QString("Failed to save video: %1").arg(filePath));
+    }
+}
+
+void MainWindow::onVideoProgress(int percent) {
+    statusBar()->showMessage(QString("Generation video: %1%").arg(percent));
+}
+
+void MainWindow::onVideoError(const QString& error) {
+    statusBar()->showMessage(QString("Erreur video: %1").arg(error));
+    QMessageBox::critical(this, "Erreur de generation video", error);
+    LOG_ERROR(QString("Video generation failed: %1").arg(error));
 }
 
 void MainWindow::onPipelineStateChanged(codex::core::PipelineState state, const QString& message) {

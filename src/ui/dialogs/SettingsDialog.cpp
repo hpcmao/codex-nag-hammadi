@@ -32,6 +32,19 @@ void SettingsDialog::setupUi() {
     auto* apiTab = new QWidget();
     auto* apiLayout = new QVBoxLayout(apiTab);
 
+    // LLM Provider selection
+    auto* llmGroup = new QGroupBox("Fournisseur LLM (Analyse de texte)", apiTab);
+    auto* llmMainLayout = new QVBoxLayout(llmGroup);
+
+    auto* providerLayout = new QHBoxLayout();
+    m_llmProviderCombo = new QComboBox(llmGroup);
+    m_llmProviderCombo->addItem("Claude (Anthropic)", "claude");
+    m_llmProviderCombo->addItem("Gemini (Google)", "gemini");
+    providerLayout->addWidget(new QLabel("Fournisseur:"));
+    providerLayout->addWidget(m_llmProviderCombo, 1);
+    llmMainLayout->addLayout(providerLayout);
+    apiLayout->addWidget(llmGroup);
+
     // Claude API
     auto* claudeGroup = new QGroupBox("Claude API (Anthropic)", apiTab);
     auto* claudeLayout = new QHBoxLayout(claudeGroup);
@@ -40,23 +53,34 @@ void SettingsDialog::setupUi() {
     m_claudeKeyEdit->setPlaceholderText("sk-ant-...");
     auto* testClaudeBtn = new QPushButton("Tester", claudeGroup);
     connect(testClaudeBtn, &QPushButton::clicked, this, &SettingsDialog::onTestClaude);
-    claudeLayout->addWidget(new QLabel("Clé API:"));
+    claudeLayout->addWidget(new QLabel("Cle API:"));
     claudeLayout->addWidget(m_claudeKeyEdit, 1);
     claudeLayout->addWidget(testClaudeBtn);
     apiLayout->addWidget(claudeGroup);
 
-    // Imagen API
-    auto* imagenGroup = new QGroupBox("Imagen 3 (Google Cloud)", apiTab);
-    auto* imagenLayout = new QHBoxLayout(imagenGroup);
-    m_imagenKeyEdit = new QLineEdit(imagenGroup);
-    m_imagenKeyEdit->setEchoMode(QLineEdit::Password);
-    m_imagenKeyEdit->setPlaceholderText("AIza...");
-    auto* testImagenBtn = new QPushButton("Tester", imagenGroup);
-    connect(testImagenBtn, &QPushButton::clicked, this, &SettingsDialog::onTestImagen);
-    imagenLayout->addWidget(new QLabel("Clé API:"));
-    imagenLayout->addWidget(m_imagenKeyEdit, 1);
-    imagenLayout->addWidget(testImagenBtn);
-    apiLayout->addWidget(imagenGroup);
+    // Google AI API (Gemini, Imagen, Veo)
+    auto* googleGroup = new QGroupBox("Google AI (Gemini, Imagen 3, Veo 2)", apiTab);
+    auto* googleMainLayout = new QVBoxLayout(googleGroup);
+
+    auto* googleKeyLayout = new QHBoxLayout();
+    m_googleAiKeyEdit = new QLineEdit(googleGroup);
+    m_googleAiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_googleAiKeyEdit->setPlaceholderText("AIza...");
+    auto* testGoogleBtn = new QPushButton("Tester", googleGroup);
+    connect(testGoogleBtn, &QPushButton::clicked, this, &SettingsDialog::onTestGoogleAI);
+    googleKeyLayout->addWidget(new QLabel("Cle API:"));
+    googleKeyLayout->addWidget(m_googleAiKeyEdit, 1);
+    googleKeyLayout->addWidget(testGoogleBtn);
+    googleMainLayout->addLayout(googleKeyLayout);
+
+    auto* googleInfoLabel = new QLabel(
+        "<i>Une seule cle pour: Gemini (texte), Imagen 3 (images), Veo 2 (videos)</i>",
+        googleGroup
+    );
+    googleInfoLabel->setStyleSheet("color: #888; font-size: 10px;");
+    googleMainLayout->addWidget(googleInfoLabel);
+
+    apiLayout->addWidget(googleGroup);
 
     // ElevenLabs API
     auto* elevenGroup = new QGroupBox("ElevenLabs", apiTab);
@@ -175,12 +199,19 @@ void SettingsDialog::loadSettings() {
         m_claudeKeyEdit->setProperty("hasKey", true);
     }
     if (storage.hasApiKey(storage.SERVICE_IMAGEN)) {
-        m_imagenKeyEdit->setText("••••••••••••••••");
-        m_imagenKeyEdit->setProperty("hasKey", true);
+        m_googleAiKeyEdit->setText("••••••••••••••••");
+        m_googleAiKeyEdit->setProperty("hasKey", true);
     }
     if (storage.hasApiKey(storage.SERVICE_ELEVENLABS)) {
         m_elevenLabsKeyEdit->setText("••••••••••••••••");
         m_elevenLabsKeyEdit->setProperty("hasKey", true);
+    }
+
+    // Load LLM provider selection
+    QString llmProvider = config.llmProvider();
+    int providerIndex = m_llmProviderCombo->findData(llmProvider);
+    if (providerIndex >= 0) {
+        m_llmProviderCombo->setCurrentIndex(providerIndex);
     }
 
     // Load voice selection
@@ -207,10 +238,14 @@ void SettingsDialog::saveSettings() {
         storage.storeApiKey(storage.SERVICE_CLAUDE, claudeKey);
     }
 
-    QString imagenKey = m_imagenKeyEdit->text();
-    if (!imagenKey.isEmpty() && !imagenKey.startsWith("•")) {
-        storage.storeApiKey(storage.SERVICE_IMAGEN, imagenKey);
+    QString googleKey = m_googleAiKeyEdit->text();
+    if (!googleKey.isEmpty() && !googleKey.startsWith("•")) {
+        storage.storeApiKey(storage.SERVICE_IMAGEN, googleKey);
     }
+
+    // Save LLM provider selection
+    QString llmProvider = m_llmProviderCombo->currentData().toString();
+    config.setLlmProvider(llmProvider);
 
     QString elevenKey = m_elevenLabsKeyEdit->text();
     if (!elevenKey.isEmpty() && !elevenKey.startsWith("•")) {
@@ -223,6 +258,7 @@ void SettingsDialog::saveSettings() {
 
     // Save paths
     config.setCodexFilePath(m_codexPathEdit->text());
+    config.setOutputImagesPath(m_outputPathEdit->text());
 
     LOG_INFO("Settings saved");
 }
@@ -250,8 +286,8 @@ void SettingsDialog::onTestClaude() {
     QMessageBox::information(this, "Test Claude", "Test de connexion à implémenter.");
 }
 
-void SettingsDialog::onTestImagen() {
-    QString key = m_imagenKeyEdit->text();
+void SettingsDialog::onTestGoogleAI() {
+    QString key = m_googleAiKeyEdit->text();
     if (key.isEmpty() || key.startsWith("•")) {
         key = codex::utils::SecureStorage::instance().getApiKey(
             codex::utils::SecureStorage::SERVICE_IMAGEN
@@ -264,7 +300,7 @@ void SettingsDialog::onTestImagen() {
     }
 
     // TODO: Implement actual API test
-    QMessageBox::information(this, "Test Imagen", "Test de connexion à implémenter.");
+    QMessageBox::information(this, "Test Google AI", "Test de connexion à implémenter.");
 }
 
 void SettingsDialog::onTestElevenLabs() {

@@ -26,10 +26,12 @@ public:
 signals:
     void generateImageRequested(const QString& passage);
     void generateAudioRequested(const QString& passage);
+    void generateVideoRequested(const QString& passage);
 
 private slots:
     void onGenerateImage();
     void onGenerateAudio();
+    void onGenerateVideo();
 
 private:
     void setupUi();
@@ -40,6 +42,7 @@ private:
     QLabel* m_positionLabel;
     QPushButton* m_generateImageBtn;
     QPushButton* m_generateAudioBtn;
+    QPushButton* m_generateVideoBtn;
 
     QString m_passage;
     int m_startPos = 0;

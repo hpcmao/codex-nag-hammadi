@@ -7,6 +7,7 @@
 
 namespace codex::api {
 class ElevenLabsClient;
+class VeoClient;
 }
 
 namespace codex::core {
@@ -48,6 +49,10 @@ private slots:
 
     void onGenerateImageFromPreview(const QString& passage);
     void onGenerateAudioFromPreview(const QString& passage);
+    void onGenerateVideoFromPreview(const QString& passage);
+    void onVideoGenerated(const QByteArray& videoData, const QString& prompt);
+    void onVideoProgress(int percent);
+    void onVideoError(const QString& error);
 
     void onPipelineStateChanged(codex::core::PipelineState state, const QString& message);
     void onPipelineProgress(int percent, const QString& step);
@@ -76,6 +81,7 @@ private:
     codex::core::TextParser* m_textParser = nullptr;
     codex::core::PipelineController* m_pipelineController = nullptr;
     codex::api::ElevenLabsClient* m_elevenLabsClient = nullptr;
+    codex::api::VeoClient* m_veoClient = nullptr;
     SlideshowWidget* m_slideshowWidget = nullptr;
 
     // Project management

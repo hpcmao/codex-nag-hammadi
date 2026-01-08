@@ -17,6 +17,7 @@ public:
     QString claudeModel() const;
     QString imagenModel() const;
     QString elevenLabsVoiceId() const;
+    QString llmProvider() const;  // "claude" or "gemini"
 
     // Paths
     QString codexFilePath() const;
@@ -25,7 +26,9 @@ public:
 
     // Setters
     void setCodexFilePath(const QString& path);
+    void setOutputImagesPath(const QString& path);
     void setElevenLabsVoiceId(const QString& voiceId);
+    void setLlmProvider(const QString& provider);
 
 private:
     Config();
