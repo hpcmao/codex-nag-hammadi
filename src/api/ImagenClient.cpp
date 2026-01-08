@@ -16,23 +16,45 @@ ImagenClient::ImagenClient(QObject* parent)
 
 void ImagenClient::generateImage(const ImageGenerationParams& params) {
     if (!isConfigured()) {
-        emit errorOccurred("Imagen API key not configured");
+        emit errorOccurred("Imagen API not configured");
         return;
     }
 
     emit requestStarted();
     emit generationProgress(10);
 
-    QString endpoint = QString("/%1:generateImages?key=%2").arg(m_model, m_apiKey);
-    QNetworkRequest request = createRequest(endpoint);
-
+    QNetworkRequest request;
     QJsonObject body;
-    body["prompt"] = params.prompt;
+    QString url;
 
-    QJsonObject imageParams;
-    imageParams["aspectRatio"] = params.aspectRatio;
-    imageParams["numberOfImages"] = params.numberOfImages;
-    body["imageGenerationConfig"] = imageParams;
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI endpoint avec clé API
+        url = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/%1:predict?key=%2")
+            .arg(m_model, m_apiKey);
+
+        QJsonArray instances;
+        QJsonObject instance;
+        instance["prompt"] = params.prompt;
+        instances.append(instance);
+        body["instances"] = instances;
+
+        QJsonObject parameters;
+        parameters["aspectRatio"] = params.aspectRatio;
+        parameters["sampleCount"] = params.numberOfImages;
+        body["parameters"] = parameters;
+    } else {
+        // AI Studio endpoint
+        url = QString("%1/%2:generateImages?key=%3").arg(m_baseUrl, m_model, m_apiKey);
+
+        body["prompt"] = params.prompt;
+
+        QJsonObject imageParams;
+        imageParams["aspectRatio"] = params.aspectRatio;
+        imageParams["numberOfImages"] = params.numberOfImages;
+        body["imageGenerationConfig"] = imageParams;
+    }
+    request.setUrl(QUrl(url));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QNetworkReply* reply = m_networkManager->post(request, QJsonDocument(body).toJson());
 
@@ -62,9 +84,24 @@ void ImagenClient::onReplyFinished(QNetworkReply* reply, const QString& original
     QJsonDocument doc = QJsonDocument::fromJson(data);
     QJsonObject response = doc.object();
 
-    QJsonArray images = response["images"].toArray();
-    if (!images.isEmpty()) {
-        QString base64Data = images[0].toObject()["bytesBase64Encoded"].toString();
+    // Extract base64 image data - different format for AI Studio vs Vertex AI
+    QString base64Data;
+
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI response format: predictions[0].bytesBase64Encoded
+        QJsonArray predictions = response["predictions"].toArray();
+        if (!predictions.isEmpty()) {
+            base64Data = predictions[0].toObject()["bytesBase64Encoded"].toString();
+        }
+    } else {
+        // AI Studio response format: images[0].bytesBase64Encoded
+        QJsonArray images = response["images"].toArray();
+        if (!images.isEmpty()) {
+            base64Data = images[0].toObject()["bytesBase64Encoded"].toString();
+        }
+    }
+
+    if (!base64Data.isEmpty()) {
         QByteArray imageData = QByteArray::fromBase64(base64Data.toUtf8());
 
         QPixmap pixmap;

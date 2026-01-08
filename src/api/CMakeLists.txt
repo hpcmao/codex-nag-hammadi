@@ -2,11 +2,13 @@
 
 add_library(codex_api STATIC
     ApiClient.cpp
+    VertexAuthenticator.cpp
     ClaudeClient.cpp
     GeminiClient.cpp
     ImagenClient.cpp
     VeoClient.cpp
     ElevenLabsClient.cpp
+    EdgeTTSClient.cpp
 )
 
 target_include_directories(codex_api PUBLIC

@@ -48,12 +48,31 @@ bool Config::load() {
                     {"model_id", "eleven_multilingual_v2"},
                     {"voice_id", ""},
                     {"speed", 0.85}
+                }},
+                {"tts_provider", "edge"},  // "edge" or "elevenlabs"
+                {"edge_tts", QJsonObject{
+                    {"voice_id", "fr-FR-HenriNeural"}
+                }},
+                {"google_ai_provider", "aistudio"},  // "aistudio" or "vertex"
+                {"vertex", QJsonObject{
+                    {"project_id", ""},
+                    {"region", "us-central1"},
+                    {"service_account_path", ""}
                 }}
             }},
             {"paths", QJsonObject{
                 {"codex_file", ""},
                 {"output_images", "./output/images"},
-                {"output_audio", "./output/audio"}
+                {"output_audio", "./output/audio"},
+                {"output_videos", "./output/videos"}
+            }},
+            {"appearance", QJsonObject{
+                {"theme", "dark"},
+                {"accent_color", "#094771"},
+                {"font_family", "Segoe UI"},
+                {"font_size", 10},
+                {"text_font_family", "Consolas"},
+                {"text_font_size", 11}
             }}
         };
         m_loaded = true;
@@ -75,6 +94,49 @@ bool Config::save() {
     QJsonDocument doc(m_config);
     file.write(doc.toJson(QJsonDocument::Indented));
     return true;
+}
+
+QVariant Config::value(const QString& path, const QVariant& defaultValue) const {
+    QStringList parts = path.split('/');
+    if (parts.isEmpty()) {
+        return defaultValue;
+    }
+
+    QJsonValue current = m_config;
+    for (const QString& part : parts) {
+        if (!current.isObject()) {
+            return defaultValue;
+        }
+        current = current.toObject()[part];
+    }
+
+    if (current.isUndefined() || current.isNull()) {
+        return defaultValue;
+    }
+
+    return current.toVariant();
+}
+
+void Config::setValue(const QString& path, const QVariant& value) {
+    QStringList parts = path.split('/');
+    if (parts.isEmpty()) {
+        return;
+    }
+
+    // Navigate to parent and set the value
+    if (parts.size() == 1) {
+        m_config[parts[0]] = QJsonValue::fromVariant(value);
+    } else if (parts.size() == 2) {
+        QJsonObject section = m_config[parts[0]].toObject();
+        section[parts[1]] = QJsonValue::fromVariant(value);
+        m_config[parts[0]] = section;
+    } else if (parts.size() == 3) {
+        QJsonObject section = m_config[parts[0]].toObject();
+        QJsonObject subsection = section[parts[1]].toObject();
+        subsection[parts[2]] = QJsonValue::fromVariant(value);
+        section[parts[1]] = subsection;
+        m_config[parts[0]] = section;
+    }
 }
 
 QString Config::claudeModel() const {
@@ -99,6 +161,10 @@ QString Config::outputImagesPath() const {
 
 QString Config::outputAudioPath() const {
     return m_config["paths"].toObject()["output_audio"].toString();
+}
+
+QString Config::outputVideosPath() const {
+    return m_config["paths"].toObject()["output_videos"].toString("./output/videos");
 }
 
 void Config::setCodexFilePath(const QString& path) {
@@ -132,6 +198,87 @@ void Config::setOutputImagesPath(const QString& path) {
     QJsonObject paths = m_config["paths"].toObject();
     paths["output_images"] = path;
     m_config["paths"] = paths;
+    save();
+}
+
+void Config::setOutputVideosPath(const QString& path) {
+    QJsonObject paths = m_config["paths"].toObject();
+    paths["output_videos"] = path;
+    m_config["paths"] = paths;
+    save();
+}
+
+QString Config::ttsProvider() const {
+    return m_config["apis"].toObject()["tts_provider"].toString("edge");
+}
+
+void Config::setTtsProvider(const QString& provider) {
+    QJsonObject apis = m_config["apis"].toObject();
+    apis["tts_provider"] = provider;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::edgeTtsVoice() const {
+    return m_config["apis"].toObject()["edge_tts"].toObject()["voice_id"].toString("fr-FR-HenriNeural");
+}
+
+void Config::setEdgeTtsVoice(const QString& voiceId) {
+    QJsonObject apis = m_config["apis"].toObject();
+    QJsonObject edgeTts = apis["edge_tts"].toObject();
+    edgeTts["voice_id"] = voiceId;
+    apis["edge_tts"] = edgeTts;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::googleAiProvider() const {
+    return m_config["apis"].toObject()["google_ai_provider"].toString("aistudio");
+}
+
+void Config::setGoogleAiProvider(const QString& provider) {
+    QJsonObject apis = m_config["apis"].toObject();
+    apis["google_ai_provider"] = provider;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::vertexProjectId() const {
+    return m_config["apis"].toObject()["vertex"].toObject()["project_id"].toString();
+}
+
+void Config::setVertexProjectId(const QString& projectId) {
+    QJsonObject apis = m_config["apis"].toObject();
+    QJsonObject vertex = apis["vertex"].toObject();
+    vertex["project_id"] = projectId;
+    apis["vertex"] = vertex;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::vertexRegion() const {
+    return m_config["apis"].toObject()["vertex"].toObject()["region"].toString("us-central1");
+}
+
+void Config::setVertexRegion(const QString& region) {
+    QJsonObject apis = m_config["apis"].toObject();
+    QJsonObject vertex = apis["vertex"].toObject();
+    vertex["region"] = region;
+    apis["vertex"] = vertex;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::vertexServiceAccountPath() const {
+    return m_config["apis"].toObject()["vertex"].toObject()["service_account_path"].toString();
+}
+
+void Config::setVertexServiceAccountPath(const QString& path) {
+    QJsonObject apis = m_config["apis"].toObject();
+    QJsonObject vertex = apis["vertex"].toObject();
+    vertex["service_account_path"] = path;
+    apis["vertex"] = vertex;
+    m_config["apis"] = apis;
     save();
 }
 

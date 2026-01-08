@@ -16,23 +16,45 @@ VeoClient::VeoClient(QObject* parent)
 
 void VeoClient::generateVideo(const VideoGenerationParams& params) {
     if (!isConfigured()) {
-        emit errorOccurred("Veo API key not configured");
+        emit errorOccurred("Veo API not configured");
         return;
     }
 
     emit requestStarted();
     emit generationProgress(5);
 
-    QString endpoint = QString("/%1:generateVideos?key=%2").arg(m_model, m_apiKey);
-    QNetworkRequest request = createRequest(endpoint);
-
+    QNetworkRequest request;
     QJsonObject body;
-    body["prompt"] = params.prompt;
+    QString url;
 
-    QJsonObject videoConfig;
-    videoConfig["aspectRatio"] = params.aspectRatio;
-    videoConfig["durationSeconds"] = params.durationSeconds;
-    body["videoGenerationConfig"] = videoConfig;
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI endpoint avec clé API
+        url = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/%1:predictLongRunning?key=%2")
+            .arg(m_model, m_apiKey);
+
+        QJsonArray instances;
+        QJsonObject instance;
+        instance["prompt"] = params.prompt;
+        instances.append(instance);
+        body["instances"] = instances;
+
+        QJsonObject parameters;
+        parameters["aspectRatio"] = params.aspectRatio;
+        parameters["durationSeconds"] = params.durationSeconds;
+        body["parameters"] = parameters;
+    } else {
+        // AI Studio endpoint
+        url = QString("%1/%2:generateVideos?key=%3").arg(m_baseUrl, m_model, m_apiKey);
+
+        body["prompt"] = params.prompt;
+
+        QJsonObject videoConfig;
+        videoConfig["aspectRatio"] = params.aspectRatio;
+        videoConfig["durationSeconds"] = params.durationSeconds;
+        body["videoGenerationConfig"] = videoConfig;
+    }
+    request.setUrl(QUrl(url));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     LOG_INFO(QString("Starting video generation: %1").arg(params.prompt.left(100)));
 
@@ -87,15 +109,21 @@ void VeoClient::onGenerateReplyFinished(QNetworkReply* reply, const QString& ori
 void VeoClient::pollOperation(const QString& operationName, const QString& originalPrompt) {
     if (!isConfigured()) {
         emit requestFinished();
-        emit errorOccurred("API key not configured");
+        emit errorOccurred("API not configured");
         return;
     }
 
-    // Poll the operation status
-    QString endpoint = QString("/v1beta/%1?key=%2").arg(operationName, m_apiKey);
-
     QNetworkRequest request;
-    request.setUrl(QUrl("https://generativelanguage.googleapis.com" + endpoint));
+    QString url;
+
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI operation polling endpoint avec clé API
+        url = QString("https://aiplatform.googleapis.com/v1/%1?key=%2").arg(operationName, m_apiKey);
+    } else {
+        // AI Studio operation polling endpoint
+        url = QString("https://generativelanguage.googleapis.com/v1beta/%1?key=%2").arg(operationName, m_apiKey);
+    }
+    request.setUrl(QUrl(url));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QNetworkReply* reply = m_networkManager->get(request);

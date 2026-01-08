@@ -4,6 +4,7 @@ add_library(codex_utils STATIC
     Config.cpp
     Logger.cpp
     SecureStorage.cpp
+    ThemeManager.cpp
 )
 
 target_include_directories(codex_utils PUBLIC
@@ -13,6 +14,7 @@ target_include_directories(codex_utils PUBLIC
 
 target_link_libraries(codex_utils PUBLIC
     Qt6::Core
+    Qt6::Widgets
     nlohmann_json::nlohmann_json
 )
 

@@ -2,11 +2,14 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QComboBox>
+#include <QLineEdit>
 #include <memory>
 #include "db/repositories/ProjectRepository.h"
 
 namespace codex::api {
 class ElevenLabsClient;
+class EdgeTTSClient;
 class VeoClient;
 }
 
@@ -62,6 +65,8 @@ private slots:
 
     void onAudioGenerated(const QByteArray& audioData, int durationMs);
     void onAudioError(const QString& error);
+    void onEdgeAudioGenerated(const QByteArray& audioData, int durationMs);
+    void onEdgeAudioError(const QString& error);
 
     void onStartSlideshow();
 
@@ -69,7 +74,6 @@ private:
     void setupUi();
     void setupMenus();
     void setupConnections();
-    void applyDarkTheme();
     void loadCodexAndRefreshUI(const QString& filePath);
 
     TreatiseListWidget* m_treatiseList = nullptr;
@@ -81,6 +85,7 @@ private:
     codex::core::TextParser* m_textParser = nullptr;
     codex::core::PipelineController* m_pipelineController = nullptr;
     codex::api::ElevenLabsClient* m_elevenLabsClient = nullptr;
+    codex::api::EdgeTTSClient* m_edgeTTSClient = nullptr;
     codex::api::VeoClient* m_veoClient = nullptr;
     SlideshowWidget* m_slideshowWidget = nullptr;
 
@@ -93,7 +98,16 @@ private:
     QString m_currentTreatiseCode;
     QString m_currentCategory;
 
+    // Quick settings in toolbar
+    QComboBox* m_voiceCombo = nullptr;
+    QLineEdit* m_outputFolderEdit = nullptr;
+    QLineEdit* m_videoFolderEdit = nullptr;
+
     void updateWindowTitle();
+    void onVoiceChanged(int index);
+    void onTestVoice();
+    void onBrowseOutputFolder();
+    void onBrowseVideoFolder();
     void setProjectModified(bool modified);
     void loadProject(const codex::db::Project& project);
     void showRecentProjectsOnStartup();

@@ -5,6 +5,7 @@
 #include "core/services/PromptBuilder.h"
 #include "core/services/MythicClassifier.h"
 #include "utils/SecureStorage.h"
+#include "utils/Config.h"
 #include "utils/Logger.h"
 
 #include <QJsonArray>
@@ -21,9 +22,22 @@ PipelineController::PipelineController(QObject* parent)
     m_promptBuilder = new PromptBuilder();
     m_mythicClassifier = new MythicClassifier();
 
-    // Load API keys
+    // Load API keys and configure providers
     auto& storage = codex::utils::SecureStorage::instance();
+    auto& config = codex::utils::Config::instance();
+
     m_claudeClient->setApiKey(storage.getApiKey(storage.SERVICE_CLAUDE));
+
+    // Configure Google AI provider (AI Studio or Vertex AI)
+    // Les deux utilisent la même clé API, seul l'endpoint change
+    QString googleProvider = config.googleAiProvider();
+    if (googleProvider == "vertex") {
+        m_imagenClient->setProvider(codex::api::GoogleAIProvider::VertexAI);
+        LOG_INFO("Imagen: Using Vertex AI endpoint");
+    } else {
+        m_imagenClient->setProvider(codex::api::GoogleAIProvider::AIStudio);
+        LOG_INFO("Imagen: Using AI Studio endpoint");
+    }
     m_imagenClient->setApiKey(storage.getApiKey(storage.SERVICE_IMAGEN));
 
     // Connect Claude signals

@@ -11,12 +11,15 @@
 #include "db/repositories/ImageRepository.h"
 #include "db/repositories/AudioRepository.h"
 #include "api/ElevenLabsClient.h"
+#include "api/EdgeTTSClient.h"
 #include "api/VeoClient.h"
 #include "core/services/TextParser.h"
 #include "core/controllers/PipelineController.h"
 #include "utils/Logger.h"
 #include "utils/Config.h"
 #include "utils/SecureStorage.h"
+#include "utils/MessageBox.h"
+#include "utils/ThemeManager.h"
 #include "db/Database.h"
 
 #include <QMenuBar>
@@ -30,6 +33,8 @@
 #include <QMessageBox>
 #include <QToolBar>
 #include <QDateTime>
+#include <QLabel>
+#include <QPushButton>
 
 namespace codex::ui {
 
@@ -51,16 +56,33 @@ MainWindow::MainWindow(QWidget* parent)
         codex::utils::SecureStorage::instance().getApiKey(
             codex::utils::SecureStorage::SERVICE_ELEVENLABS));
 
+    // Create Edge TTS client (free alternative)
+    m_edgeTTSClient = new codex::api::EdgeTTSClient(this);
+
     // Create Veo client for video generation
     m_veoClient = new codex::api::VeoClient(this);
+
+    // Configure Google AI provider (AI Studio or Vertex AI) for Veo
+    // Les deux utilisent la même clé API, seul l'endpoint change
+    auto& config = codex::utils::Config::instance();
+    QString googleProvider = config.googleAiProvider();
+    if (googleProvider == "vertex") {
+        m_veoClient->setProvider(codex::api::GoogleAIProvider::VertexAI);
+        LOG_INFO("Veo: Using Vertex AI endpoint");
+    } else {
+        m_veoClient->setProvider(codex::api::GoogleAIProvider::AIStudio);
+        LOG_INFO("Veo: Using AI Studio endpoint");
+    }
     m_veoClient->setApiKey(
         codex::utils::SecureStorage::instance().getApiKey(
-            codex::utils::SecureStorage::SERVICE_IMAGEN));  // Uses same key as Imagen
+            codex::utils::SecureStorage::SERVICE_IMAGEN));
 
     setupUi();
     setupMenus();
     setupConnections();
-    applyDarkTheme();
+
+    // Apply theme from settings
+    codex::utils::ThemeManager::instance().apply();
 
     // Initialize database
     codex::db::Database::instance().initialize();
@@ -161,6 +183,64 @@ void MainWindow::setupUi() {
     auto* slideshowAction = toolbar->addAction("Diaporama");
     connect(slideshowAction, &QAction::triggered, this, &MainWindow::onStartSlideshow);
 
+    // Settings toolbar
+    auto* settingsToolbar = addToolBar("Reglages");
+    settingsToolbar->setMovable(false);
+
+    // Voice selection (Edge TTS Neural voices)
+    settingsToolbar->addWidget(new QLabel(" Voix: ", this));
+    m_voiceCombo = new QComboBox(this);
+    m_voiceCombo->addItem("Henri (FR homme)", "fr-FR-HenriNeural");
+    m_voiceCombo->addItem("Denise (FR femme)", "fr-FR-DeniseNeural");
+    m_voiceCombo->addItem("Eloise (FR femme)", "fr-FR-EloiseNeural");
+    m_voiceCombo->addItem("Remy (FR multi)", "fr-FR-RemyMultilingualNeural");
+    m_voiceCombo->addItem("Antoine (CA homme)", "fr-CA-AntoineNeural");
+    m_voiceCombo->addItem("Sylvie (CA femme)", "fr-CA-SylvieNeural");
+    m_voiceCombo->addItem("Guy (US homme)", "en-US-GuyNeural");
+    m_voiceCombo->addItem("Jenny (US femme)", "en-US-JennyNeural");
+    m_voiceCombo->setMinimumWidth(150);
+    // Load saved voice
+    QString savedVoice = codex::utils::Config::instance().edgeTtsVoice();
+    int voiceIndex = m_voiceCombo->findData(savedVoice);
+    if (voiceIndex >= 0) m_voiceCombo->setCurrentIndex(voiceIndex);
+    connect(m_voiceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onVoiceChanged);
+    settingsToolbar->addWidget(m_voiceCombo);
+
+    // Test voice button
+    auto* testVoiceBtn = new QPushButton("Test", this);
+    testVoiceBtn->setMaximumWidth(50);
+    connect(testVoiceBtn, &QPushButton::clicked, this, &MainWindow::onTestVoice);
+    settingsToolbar->addWidget(testVoiceBtn);
+
+    settingsToolbar->addSeparator();
+
+    // Images output folder
+    settingsToolbar->addWidget(new QLabel(" Images: ", this));
+    m_outputFolderEdit = new QLineEdit(this);
+    m_outputFolderEdit->setReadOnly(true);
+    m_outputFolderEdit->setMinimumWidth(150);
+    m_outputFolderEdit->setText(codex::utils::Config::instance().outputImagesPath());
+    settingsToolbar->addWidget(m_outputFolderEdit);
+
+    auto* browseBtn = new QPushButton("...", this);
+    browseBtn->setMaximumWidth(30);
+    connect(browseBtn, &QPushButton::clicked, this, &MainWindow::onBrowseOutputFolder);
+    settingsToolbar->addWidget(browseBtn);
+
+    // Videos output folder
+    settingsToolbar->addWidget(new QLabel(" Videos: ", this));
+    m_videoFolderEdit = new QLineEdit(this);
+    m_videoFolderEdit->setReadOnly(true);
+    m_videoFolderEdit->setMinimumWidth(150);
+    m_videoFolderEdit->setText(codex::utils::Config::instance().outputVideosPath());
+    settingsToolbar->addWidget(m_videoFolderEdit);
+
+    auto* browseVideoBtn = new QPushButton("...", this);
+    browseVideoBtn->setMaximumWidth(30);
+    connect(browseVideoBtn, &QPushButton::clicked, this, &MainWindow::onBrowseVideoFolder);
+    settingsToolbar->addWidget(browseVideoBtn);
+
     // Status bar
     statusBar()->showMessage("Prêt");
 }
@@ -258,72 +338,12 @@ void MainWindow::setupConnections() {
             this, &MainWindow::onAudioGenerated);
     connect(m_elevenLabsClient, &codex::api::ElevenLabsClient::errorOccurred,
             this, &MainWindow::onAudioError);
-}
 
-void MainWindow::applyDarkTheme() {
-    QString style = R"(
-        QMainWindow, QWidget {
-            background-color: #1e1e1e;
-            color: #d4d4d4;
-        }
-        QMenuBar {
-            background-color: #2d2d2d;
-            color: #d4d4d4;
-        }
-        QMenuBar::item:selected {
-            background-color: #3d3d3d;
-        }
-        QMenu {
-            background-color: #2d2d2d;
-            color: #d4d4d4;
-            border: 1px solid #3d3d3d;
-        }
-        QMenu::item:selected {
-            background-color: #094771;
-        }
-        QToolBar {
-            background-color: #2d2d2d;
-            border: none;
-            spacing: 5px;
-            padding: 5px;
-        }
-        QToolButton {
-            background-color: #3d3d3d;
-            color: #d4d4d4;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-        }
-        QToolButton:hover {
-            background-color: #094771;
-        }
-        QStatusBar {
-            background-color: #007acc;
-            color: white;
-        }
-        QSplitter::handle {
-            background-color: #3d3d3d;
-        }
-        QTextEdit, QPlainTextEdit {
-            background-color: #1e1e1e;
-            color: #d4d4d4;
-            border: 1px solid #3d3d3d;
-            selection-background-color: #264f78;
-        }
-        QScrollBar:vertical {
-            background-color: #1e1e1e;
-            width: 12px;
-        }
-        QScrollBar::handle:vertical {
-            background-color: #5a5a5a;
-            border-radius: 6px;
-            min-height: 20px;
-        }
-        QScrollBar::handle:vertical:hover {
-            background-color: #7a7a7a;
-        }
-    )";
-    setStyleSheet(style);
+    // Edge TTS signals
+    connect(m_edgeTTSClient, &codex::api::EdgeTTSClient::speechGenerated,
+            this, &MainWindow::onEdgeAudioGenerated);
+    connect(m_edgeTTSClient, &codex::api::EdgeTTSClient::errorOccurred,
+            this, &MainWindow::onEdgeAudioError);
 }
 
 void MainWindow::onOpenFile() {
@@ -344,7 +364,7 @@ void MainWindow::onOpenFile() {
 
 void MainWindow::loadCodexAndRefreshUI(const QString& filePath) {
     if (!m_textParser->loadCodexFile(filePath)) {
-        QMessageBox::warning(this, "Erreur",
+        codex::utils::MessageBox::warning(this, "Erreur",
             QString("Impossible de charger le fichier Codex:\n%1").arg(filePath));
         return;
     }
@@ -380,7 +400,7 @@ void MainWindow::onSaveProject() {
         statusBar()->showMessage(QString("Projet sauvegarde: %1").arg(m_currentProject.name));
         LOG_INFO(QString("Saved project: %1").arg(m_currentProject.name));
     } else {
-        QMessageBox::warning(this, "Erreur", "Impossible de sauvegarder le projet.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Impossible de sauvegarder le projet.");
         LOG_ERROR(QString("Failed to save project: %1").arg(m_currentProject.name));
     }
 }
@@ -408,7 +428,7 @@ void MainWindow::onPassageSelected(const QString& text, int start, int end) {
 
 void MainWindow::onGenerateImage() {
     if (m_selectedPassage.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Veuillez d'abord selectionner un passage de texte.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Veuillez d'abord selectionner un passage de texte.");
         return;
     }
 
@@ -417,7 +437,7 @@ void MainWindow::onGenerateImage() {
 
     // TODO: Implement full pipeline
     // For now, just show a placeholder message
-    QMessageBox::information(this, "Generation",
+    codex::utils::MessageBox::info(this, "Generation",
         QString("Pipeline de generation a implementer.\n\nPassage selectionne:\n%1")
             .arg(m_selectedPassage.left(200) + "..."));
 }
@@ -464,7 +484,7 @@ void MainWindow::onGenerateImageFromPreview(const QString& passage) {
 
     // Check if pipeline is already running
     if (m_pipelineController->isRunning()) {
-        QMessageBox::warning(this, "Generation en cours",
+        codex::utils::MessageBox::warning(this, "Generation en cours",
             "Une generation est deja en cours. Veuillez patienter.");
         return;
     }
@@ -481,44 +501,59 @@ void MainWindow::onGenerateImageFromPreview(const QString& passage) {
 
 void MainWindow::onGenerateAudioFromPreview(const QString& passage) {
     if (passage.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Aucun passage selectionne pour la narration.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Aucun passage selectionne pour la narration.");
         return;
     }
 
-    // Check if API key is configured
-    QString apiKey = codex::utils::SecureStorage::instance().getApiKey(
-        codex::utils::SecureStorage::SERVICE_ELEVENLABS);
-    if (apiKey.isEmpty()) {
-        QMessageBox::warning(this, "Configuration requise",
-            "Veuillez configurer votre cle API ElevenLabs dans les parametres.");
-        onShowSettings();
-        return;
-    }
+    auto& config = codex::utils::Config::instance();
+    QString ttsProvider = config.ttsProvider();
 
     statusBar()->showMessage("Generation audio en cours...");
     m_audioPlayer->stop();
 
-    // Get voice settings from config
-    codex::api::VoiceSettings voiceSettings;
-    voiceSettings.voiceId = codex::utils::Config::instance().elevenLabsVoiceId();
-    if (voiceSettings.voiceId.isEmpty()) {
-        // Default voice: "Daniel" (deep, narrator-like)
-        voiceSettings.voiceId = "onwK4e9ZLuTAKqWW03F9";
+    if (ttsProvider == "edge") {
+        // Use Microsoft Edge Neural TTS (free, high quality)
+        codex::api::EdgeVoiceSettings edgeSettings;
+        edgeSettings.voiceId = config.edgeTtsVoice();
+        edgeSettings.rate = -15;     // Slightly slower for narration (-100 to 100)
+        edgeSettings.pitch = 0;      // Normal pitch
+        edgeSettings.volume = 100;   // Full volume
+
+        m_edgeTTSClient->generateSpeech(passage, edgeSettings);
+
+        LOG_INFO(QString("Edge TTS generation started for passage: %1 chars, voice: %2")
+                 .arg(passage.length()).arg(edgeSettings.voiceId));
+    } else {
+        // Use ElevenLabs (premium)
+        QString apiKey = codex::utils::SecureStorage::instance().getApiKey(
+            codex::utils::SecureStorage::SERVICE_ELEVENLABS);
+        if (apiKey.isEmpty()) {
+            codex::utils::MessageBox::warning(this, "Configuration requise",
+                "Veuillez configurer votre cle API ElevenLabs dans les parametres,\n"
+                "ou selectionnez Edge TTS (gratuit) comme fournisseur.");
+            onShowSettings();
+            return;
+        }
+
+        codex::api::VoiceSettings voiceSettings;
+        voiceSettings.voiceId = config.elevenLabsVoiceId();
+        if (voiceSettings.voiceId.isEmpty()) {
+            voiceSettings.voiceId = "onwK4e9ZLuTAKqWW03F9";
+        }
+        voiceSettings.stability = 0.5;
+        voiceSettings.similarityBoost = 0.75;
+        voiceSettings.speed = 0.85;
+
+        m_elevenLabsClient->generateSpeech(passage, voiceSettings);
+
+        LOG_INFO(QString("ElevenLabs generation started for passage: %1 chars, voice: %2")
+                 .arg(passage.length()).arg(voiceSettings.voiceId));
     }
-    voiceSettings.stability = 0.5;
-    voiceSettings.similarityBoost = 0.75;
-    voiceSettings.speed = 0.85;
-
-    // Generate speech using ElevenLabs
-    m_elevenLabsClient->generateSpeech(passage, voiceSettings);
-
-    LOG_INFO(QString("Audio generation started for passage: %1 chars, voice: %2")
-             .arg(passage.length()).arg(voiceSettings.voiceId));
 }
 
 void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
     if (audioData.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Les donnees audio recues sont vides.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Les donnees audio recues sont vides.");
         return;
     }
 
@@ -535,13 +570,39 @@ void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
 
 void MainWindow::onAudioError(const QString& error) {
     statusBar()->showMessage(QString("Erreur audio: %1").arg(error));
-    QMessageBox::critical(this, "Erreur de generation audio", error);
+    codex::utils::MessageBox::critical(this, "Erreur de generation audio", error);
     LOG_ERROR(QString("Audio generation failed: %1").arg(error));
+}
+
+void MainWindow::onEdgeAudioGenerated(const QByteArray& audioData, int durationMs) {
+    if (audioData.isEmpty()) {
+        statusBar()->showMessage("Erreur: donnees audio vides");
+        LOG_ERROR("Edge TTS returned empty audio data");
+        return;
+    }
+
+    // Load and play the MP3 audio data
+    m_audioPlayer->loadFromData(audioData);
+    m_audioPlayer->play();
+
+    int seconds = durationMs / 1000;
+    statusBar()->showMessage(QString("Audio genere! Duree: %1:%2 | Taille: %3 KB")
+                             .arg(seconds / 60, 2, 10, QChar('0'))
+                             .arg(seconds % 60, 2, 10, QChar('0'))
+                             .arg(audioData.size() / 1024));
+    LOG_INFO(QString("Edge TTS audio generated, size: %1 bytes, duration: %2 ms")
+             .arg(audioData.size()).arg(durationMs));
+}
+
+void MainWindow::onEdgeAudioError(const QString& error) {
+    statusBar()->showMessage(QString("Erreur Edge TTS: %1").arg(error));
+    codex::utils::MessageBox::critical(this, "Erreur Edge TTS", error);
+    LOG_ERROR(QString("Edge TTS generation failed: %1").arg(error));
 }
 
 void MainWindow::onGenerateVideoFromPreview(const QString& passage) {
     if (passage.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Aucun passage selectionne pour la video.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Aucun passage selectionne pour la video.");
         return;
     }
 
@@ -549,7 +610,7 @@ void MainWindow::onGenerateVideoFromPreview(const QString& passage) {
     QString apiKey = codex::utils::SecureStorage::instance().getApiKey(
         codex::utils::SecureStorage::SERVICE_IMAGEN);
     if (apiKey.isEmpty()) {
-        QMessageBox::warning(this, "Configuration requise",
+        codex::utils::MessageBox::warning(this, "Configuration requise",
             "Veuillez configurer votre cle Google AI API dans les parametres.");
         onShowSettings();
         return;
@@ -581,7 +642,7 @@ void MainWindow::onVideoGenerated(const QByteArray& videoData, const QString& pr
     Q_UNUSED(prompt)
 
     if (videoData.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Les donnees video recues sont vides.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Les donnees video recues sont vides.");
         return;
     }
 
@@ -598,14 +659,14 @@ void MainWindow::onVideoGenerated(const QByteArray& videoData, const QString& pr
         file.close();
 
         statusBar()->showMessage(QString("Video generee: %1").arg(filePath));
-        QMessageBox::information(this, "Video generee",
+        codex::utils::MessageBox::info(this, "Video generee",
             QString("La video a ete sauvegardee:\n%1\n\nTaille: %2 KB")
                 .arg(filePath)
                 .arg(videoData.size() / 1024));
 
         LOG_INFO(QString("Video saved: %1 (%2 bytes)").arg(filePath).arg(videoData.size()));
     } else {
-        QMessageBox::warning(this, "Erreur",
+        codex::utils::MessageBox::warning(this, "Erreur",
             QString("Impossible de sauvegarder la video:\n%1").arg(filePath));
         LOG_ERROR(QString("Failed to save video: %1").arg(filePath));
     }
@@ -617,7 +678,7 @@ void MainWindow::onVideoProgress(int percent) {
 
 void MainWindow::onVideoError(const QString& error) {
     statusBar()->showMessage(QString("Erreur video: %1").arg(error));
-    QMessageBox::critical(this, "Erreur de generation video", error);
+    codex::utils::MessageBox::critical(this, "Erreur de generation video", error);
     LOG_ERROR(QString("Video generation failed: %1").arg(error));
 }
 
@@ -645,14 +706,14 @@ void MainWindow::onPipelineFailed(const QString& error) {
     m_imageViewer->showPlaceholder();
     statusBar()->showMessage(QString("Erreur: %1").arg(error));
 
-    QMessageBox::critical(this, "Erreur de generation", error);
+    codex::utils::MessageBox::critical(this, "Erreur de generation", error);
 
     LOG_ERROR(QString("Pipeline failed: %1").arg(error));
 }
 
 void MainWindow::onSaveImage() {
     if (!m_imageViewer->hasImage()) {
-        QMessageBox::warning(this, "Erreur", "Aucune image a sauvegarder.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Aucune image a sauvegarder.");
         return;
     }
 
@@ -675,7 +736,7 @@ void MainWindow::onSaveImage() {
         statusBar()->showMessage(QString("Image sauvegardee: %1").arg(filePath));
         LOG_INFO(QString("Image saved to: %1").arg(filePath));
     } else {
-        QMessageBox::warning(this, "Erreur", "Impossible de sauvegarder l'image.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Impossible de sauvegarder l'image.");
         LOG_ERROR(QString("Failed to save image to: %1").arg(filePath));
     }
 }
@@ -683,7 +744,7 @@ void MainWindow::onSaveImage() {
 void MainWindow::onStartSlideshow() {
     // Check if we have any image to show
     if (!m_imageViewer->hasImage()) {
-        QMessageBox::information(this, "Diaporama",
+        codex::utils::MessageBox::info(this, "Diaporama",
             "Generez au moins une image avant de lancer le diaporama.\n\n"
             "Le diaporama affichera les images generees avec la narration audio synchronisee.");
         return;
@@ -831,6 +892,54 @@ void MainWindow::showRecentProjectsOnStartup() {
             loadProject(dialog.selectedProject());
         }
     }
+}
+
+void MainWindow::onVoiceChanged(int /*index*/) {
+    QString voiceId = m_voiceCombo->currentData().toString();
+    codex::utils::Config::instance().setEdgeTtsVoice(voiceId);
+    LOG_INFO(QString("Voice changed to: %1").arg(voiceId));
+}
+
+void MainWindow::onBrowseOutputFolder() {
+    QString path = QFileDialog::getExistingDirectory(
+        this, "Selectionner dossier images",
+        m_outputFolderEdit->text()
+    );
+    if (!path.isEmpty()) {
+        m_outputFolderEdit->setText(path);
+        codex::utils::Config::instance().setOutputImagesPath(path);
+        LOG_INFO(QString("Images folder changed to: %1").arg(path));
+    }
+}
+
+void MainWindow::onBrowseVideoFolder() {
+    QString path = QFileDialog::getExistingDirectory(
+        this, "Selectionner dossier videos",
+        m_videoFolderEdit->text()
+    );
+    if (!path.isEmpty()) {
+        m_videoFolderEdit->setText(path);
+        codex::utils::Config::instance().setOutputVideosPath(path);
+        LOG_INFO(QString("Videos folder changed to: %1").arg(path));
+    }
+}
+
+void MainWindow::onTestVoice() {
+    QString voiceId = m_voiceCombo->currentData().toString();
+    QString testText = QString("Bonjour, je suis la voix %1. Ceci est un test de synthese vocale.")
+        .arg(m_voiceCombo->currentText());
+
+    statusBar()->showMessage(QString("Test de la voix %1...").arg(m_voiceCombo->currentText()));
+
+    codex::api::EdgeVoiceSettings settings;
+    settings.voiceId = voiceId;
+    settings.rate = 0;
+    settings.pitch = 0;
+    settings.volume = 100;
+
+    m_edgeTTSClient->generateSpeech(testText, settings);
+
+    LOG_INFO(QString("Testing voice: %1").arg(voiceId));
 }
 
 } // namespace codex::ui

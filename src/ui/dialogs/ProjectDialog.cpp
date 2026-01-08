@@ -1,10 +1,10 @@
 #include "ProjectDialog.h"
 #include "utils/Logger.h"
+#include "utils/MessageBox.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
-#include <QMessageBox>
 #include <QDateTime>
 
 namespace codex::ui {
@@ -249,7 +249,7 @@ void ProjectDialog::onCreateClicked() {
 
     QString name = m_newProjectNameEdit->text().trimmed();
     if (name.isEmpty()) {
-        QMessageBox::warning(this, "Erreur", "Veuillez entrer un nom pour le projet.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Veuillez entrer un nom pour le projet.");
         m_newProjectNameEdit->setFocus();
         return;
     }
@@ -269,13 +269,13 @@ void ProjectDialog::onCreateClicked() {
         emit newProjectRequested(name);
         accept();
     } else {
-        QMessageBox::critical(this, "Erreur", "Impossible de creer le projet.");
+        codex::utils::MessageBox::critical(this, "Erreur", "Impossible de creer le projet.");
     }
 }
 
 void ProjectDialog::onOpenClicked() {
     if (m_selectedProject.id <= 0) {
-        QMessageBox::warning(this, "Erreur", "Veuillez selectionner un projet.");
+        codex::utils::MessageBox::warning(this, "Erreur", "Veuillez selectionner un projet.");
         return;
     }
 
@@ -307,7 +307,7 @@ void ProjectDialog::onDeleteClicked() {
 
             loadProjects();
         } else {
-            QMessageBox::critical(this, "Erreur", "Impossible de supprimer le projet.");
+            codex::utils::MessageBox::critical(this, "Erreur", "Impossible de supprimer le projet.");
         }
     }
 }

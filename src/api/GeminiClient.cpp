@@ -15,14 +15,24 @@ GeminiClient::GeminiClient(QObject* parent)
 
 void GeminiClient::enrichPassage(const QString& prompt) {
     if (!isConfigured()) {
-        emit errorOccurred("Gemini API key not configured");
+        emit errorOccurred("Gemini API not configured");
         return;
     }
 
     emit requestStarted();
 
-    QString endpoint = QString("/%1:generateContent?key=%2").arg(m_model, m_apiKey);
-    QNetworkRequest request = createRequest(endpoint);
+    QNetworkRequest request;
+    QString url;
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI endpoint avec clé API
+        url = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/%1:generateContent?key=%2")
+            .arg(m_model, m_apiKey);
+    } else {
+        // AI Studio endpoint
+        url = QString("%1/%2:generateContent?key=%3").arg(m_baseUrl, m_model, m_apiKey);
+    }
+    request.setUrl(QUrl(url));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject body;
     QJsonArray contents;
@@ -69,8 +79,18 @@ void GeminiClient::generateImagePrompt(const QString& passage, const QString& st
 
     QString fullPrompt = systemPrompt + "\n\nPassage:\n" + passage;
 
-    QString endpoint = QString("/%1:generateContent?key=%2").arg(m_model, m_apiKey);
-    QNetworkRequest request = createRequest(endpoint);
+    QNetworkRequest request;
+    QString url;
+    if (m_provider == GoogleAIProvider::VertexAI) {
+        // Vertex AI endpoint avec clé API
+        url = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/%1:generateContent?key=%2")
+            .arg(m_model, m_apiKey);
+    } else {
+        // AI Studio endpoint
+        url = QString("%1/%2:generateContent?key=%3").arg(m_baseUrl, m_model, m_apiKey);
+    }
+    request.setUrl(QUrl(url));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
 
     QJsonObject body;
     QJsonArray contents;
