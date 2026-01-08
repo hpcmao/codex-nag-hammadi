@@ -42,12 +42,21 @@ bool TextParser::loadCodexFile(const QString& filePath) {
     m_rawContent = in.readAll();
     file.close();
 
+    // Normalize line endings (Windows CRLF to LF)
+    m_rawContent.replace("\r\n", "\n");
+    m_rawContent.replace("\r", "\n");
+
+    // Normalize dashes (en-dash to hyphen for consistent parsing)
+    m_rawContent.replace(QString::fromUtf8("–"), "-");  // en-dash
+    m_rawContent.replace(QString::fromUtf8("—"), "-");  // em-dash
+
     parsePages();
+    detectPageOffset();
     parseTableOfContents();
 
     m_loaded = true;
-    LOG_INFO(QString("Loaded Codex file: %1 pages, %2 treatises")
-             .arg(m_pages.size()).arg(m_treatises.size()));
+    LOG_INFO(QString("Loaded Codex file: %1 pages, %2 treatises, offset: %3")
+             .arg(m_pages.size()).arg(m_treatises.size()).arg(m_pageOffset));
     return true;
 }
 
@@ -95,6 +104,40 @@ void TextParser::parsePages() {
     LOG_INFO(QString("Parsed %1 pages from Codex").arg(m_pages.size()));
 }
 
+void TextParser::detectPageOffset() {
+    m_pageOffset = 0;
+
+    // Look for "Codex I-1" pattern which marks page 1 content (dashes normalized to hyphen)
+    QRegularExpression codexStartRegex(R"(^1\s*\nCodex\s+I-1)",
+                                        QRegularExpression::MultilineOption);
+
+    for (int i = 0; i < m_pages.size(); ++i) {
+        if (codexStartRegex.match(m_pages[i]).hasMatch()) {
+            // Found page 1 content at file page i
+            // TOC says page 1, but it's at file page i, so offset = i - 1
+            m_pageOffset = i - 1;
+            LOG_INFO(QString("Detected page offset: %1 (page 1 content found at file page %2)")
+                     .arg(m_pageOffset).arg(i));
+            return;
+        }
+    }
+
+    // Fallback: look for "Prière" which is typically the first treatise
+    QRegularExpression prayerRegex(R"(Prière\s+de\s+l['']?\s*Apôtre\s+Paul)",
+                                    QRegularExpression::CaseInsensitiveOption);
+
+    for (int i = 0; i < m_pages.size(); ++i) {
+        if (prayerRegex.match(m_pages[i]).hasMatch()) {
+            // First treatise typically starts at TOC page 1
+            m_pageOffset = i - 1;
+            LOG_INFO(QString("Detected page offset via Prière: %1").arg(m_pageOffset));
+            return;
+        }
+    }
+
+    LOG_WARN("Could not detect page offset, using default 0");
+}
+
 QVector<TreatiseInfo> TextParser::parseTableOfContents() {
     if (!m_treatises.isEmpty()) {
         return m_treatises;
@@ -113,8 +156,10 @@ QVector<TreatiseInfo> TextParser::parseTableOfContents() {
 
     // Regex pour parser les entrées de la table des matières
     // Capture: code (I-1), pages manuscrit (A-B ou 1-16), titre, page fichier
+    // Note: dashes are normalized to hyphen in loadCodexFile()
+    // Note: dots may be separated by spaces: ". . . ." instead of "...."
     QRegularExpression tocRegex(
-        R"(([IVX]+–\d+|8502–\d+|X)\s+(\d+\*?-\d+\*?|A-B)\s+(.+?)\s*\.{2,}\s*(\d+))"
+        R"(([IVX]+-\d+|8502-\d+|X)\s+(\d+\*?-\d+\*?|A-B)\s+(.+?)\s*(?:\.[\s.]*){2,}\s*(\d+))"
     );
 
     QRegularExpressionMatchIterator it = tocRegex.globalMatch(tocContent);
@@ -173,10 +218,14 @@ ParsedTreatise TextParser::extractTreatise(const QString& code) {
 
     result.code = info->code;
     result.title = info->title;
+    result.startPage = info->startPage;
 
-    // Extraire le contenu des pages
+    // Extraire le contenu des pages (avec offset)
     QStringList contentParts;
-    for (int p = info->startPage; p <= info->endPage && p < m_pages.size(); ++p) {
+    int actualStartPage = info->startPage + m_pageOffset;
+    int actualEndPage = info->endPage + m_pageOffset;
+
+    for (int p = actualStartPage; p <= actualEndPage && p < m_pages.size(); ++p) {
         QString pageContent = m_pages[p];
         if (!pageContent.isEmpty()) {
             contentParts.append(pageContent);

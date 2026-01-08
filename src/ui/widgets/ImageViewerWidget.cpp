@@ -23,6 +23,7 @@ void ImageViewerWidget::setupUi() {
     // Title
     auto* titleLabel = new QLabel("Image Generee", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #d4d4d4;");
+    titleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(titleLabel);
 
     // Scroll area for image
@@ -138,6 +139,7 @@ void ImageViewerWidget::setupUi() {
     m_statusLabel = new QLabel(this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
     m_statusLabel->setStyleSheet("color: #888; font-size: 10px;");
+    m_statusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(m_statusLabel);
 }
 

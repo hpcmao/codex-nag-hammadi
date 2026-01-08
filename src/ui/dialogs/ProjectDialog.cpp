@@ -63,6 +63,7 @@ void ProjectDialog::setupUi() {
 
     m_infoLabel = new QLabel(this);
     m_infoLabel->setStyleSheet("color: #888; font-size: 11px;");
+    m_infoLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     listLayout->addWidget(m_infoLabel);
 
     mainLayout->addWidget(listGroup);

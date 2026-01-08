@@ -102,6 +102,7 @@ void SettingsDialog::setupUi() {
     );
     infoLabel->setWordWrap(true);
     infoLabel->setStyleSheet("color: #888;");
+    infoLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     apiLayout->addWidget(infoLabel);
 
     apiLayout->addStretch();

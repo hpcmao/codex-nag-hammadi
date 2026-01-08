@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QFont>
+#include <QRegularExpression>
 
 namespace codex::ui {
 
@@ -53,6 +54,53 @@ void TextViewerWidget::loadFile(const QString& filePath) {
 
 void TextViewerWidget::setText(const QString& text) {
     m_textEdit->setPlainText(text);
+}
+
+void TextViewerWidget::setTextWithVerses(const QString& text, int startPage) {
+    // Format text with Page:Paragraph verse numbers
+    // Page markers in text: "|" indicates manuscript page change
+    // Paragraphs are separated by double newlines or indentation
+
+    QString formatted;
+    int currentPage = startPage;
+    int paragraphNum = 1;
+
+    // Split by page markers first (| character)
+    QStringList pages = text.split(QRegularExpression(R"(\s*\|\s*)"));
+
+    for (int pageIdx = 0; pageIdx < pages.size(); ++pageIdx) {
+        QString pageContent = pages[pageIdx].trimmed();
+        if (pageContent.isEmpty()) continue;
+
+        // Add page header
+        if (pageIdx > 0) {
+            currentPage++;
+            paragraphNum = 1;
+            formatted += QString("\n══════ Page %1 ══════\n\n").arg(currentPage);
+        }
+
+        // Split into paragraphs (double newline or significant indentation)
+        QStringList paragraphs = pageContent.split(QRegularExpression(R"(\n\s*\n)"));
+
+        for (const QString& para : paragraphs) {
+            QString trimmedPara = para.trimmed();
+            if (trimmedPara.isEmpty()) continue;
+
+            // Skip footnotes and annotations (lines starting with *)
+            if (trimmedPara.startsWith("*") || trimmedPara.startsWith("†")) {
+                formatted += QString("    %1\n\n").arg(trimmedPara);
+                continue;
+            }
+
+            // Add verse number
+            QString verseRef = QString("[%1:%2] ").arg(currentPage).arg(paragraphNum);
+            formatted += verseRef + trimmedPara + "\n\n";
+            paragraphNum++;
+        }
+    }
+
+    m_textEdit->setPlainText(formatted);
+    LOG_INFO(QString("Formatted text with verses starting at page %1").arg(startPage));
 }
 
 QString TextViewerWidget::selectedText() const {

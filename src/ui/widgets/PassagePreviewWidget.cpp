@@ -23,6 +23,7 @@ void PassagePreviewWidget::setupUi() {
     // Title
     auto* titleLabel = new QLabel("Passage Selectionne", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #d4d4d4;");
+    titleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(titleLabel);
 
     // Preview text area
@@ -48,10 +49,12 @@ void PassagePreviewWidget::setupUi() {
 
     m_statsLabel = new QLabel("0 caracteres | 0 mots", this);
     m_statsLabel->setStyleSheet("color: #888; font-size: 10px;");
+    m_statsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     statsLayout->addWidget(m_statsLabel);
 
     m_positionLabel = new QLabel("", this);
     m_positionLabel->setStyleSheet("color: #666; font-size: 10px;");
+    m_positionLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     statsLayout->addWidget(m_positionLabel);
 
     statsLayout->addStretch();

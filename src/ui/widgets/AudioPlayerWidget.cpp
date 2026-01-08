@@ -45,6 +45,7 @@ void AudioPlayerWidget::setupUi() {
     // Title
     auto* titleLabel = new QLabel("Lecteur Audio", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #d4d4d4;");
+    titleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(titleLabel);
 
     // Controls row
@@ -93,6 +94,7 @@ void AudioPlayerWidget::setupUi() {
     // Time label
     m_timeLabel = new QLabel("00:00 / 00:00", this);
     m_timeLabel->setStyleSheet("color: #888; font-size: 11px; min-width: 80px;");
+    m_timeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     controlsLayout->addWidget(m_timeLabel);
 
     controlsLayout->addStretch();
@@ -100,6 +102,7 @@ void AudioPlayerWidget::setupUi() {
     // Volume icon and slider
     auto* volumeLabel = new QLabel("Vol", this);
     volumeLabel->setStyleSheet("color: #888; font-size: 10px;");
+    volumeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     controlsLayout->addWidget(volumeLabel);
 
     m_volumeSlider = new QSlider(Qt::Horizontal, this);
@@ -155,6 +158,7 @@ void AudioPlayerWidget::setupUi() {
     // Status label
     m_statusLabel = new QLabel("Aucun audio charge", this);
     m_statusLabel->setStyleSheet("color: #666; font-size: 10px;");
+    m_statusLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     mainLayout->addWidget(m_statusLabel);
 
     // Initialize volume

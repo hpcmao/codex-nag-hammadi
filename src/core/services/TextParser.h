@@ -21,6 +21,7 @@ struct ParsedTreatise {
     QString fullText;
     QVector<QString> pages;
     QString category;       // Catégorie mythique
+    int startPage = 0;      // Page de début (pour numérotation des versets)
 };
 
 struct ParsedPassage {
@@ -67,12 +68,14 @@ public:
 private:
     void loadEntityKeywords();
     void parsePages();
+    void detectPageOffset();
     QString normalizeCode(const QString& code) const;
 
     QString m_rawContent;
     QVector<QString> m_pages;           // Contenu par page
     QVector<TreatiseInfo> m_treatises;  // Table des matières parsée
     QMap<QString, QStringList> m_entityKeywords;
+    int m_pageOffset = 0;               // Décalage entre pages TOC et pages fichier
     bool m_loaded = false;
 };
 

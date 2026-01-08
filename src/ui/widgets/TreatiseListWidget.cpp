@@ -25,6 +25,7 @@ void TreatiseListWidget::setupUi() {
     // Title
     auto* titleLabel = new QLabel("Traites du Codex", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #d4d4d4;");
+    titleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(titleLabel);
 
     // Search field
@@ -107,10 +108,12 @@ void TreatiseListWidget::setupUi() {
 
     auto* categoryTitle = new QLabel("Categorie Mythique", categoryFrame);
     categoryTitle->setStyleSheet("color: #888; font-size: 10px; border: none;");
+    categoryTitle->setTextInteractionFlags(Qt::TextSelectableByMouse);
     categoryLayout->addWidget(categoryTitle);
 
     m_categoryLabel = new QLabel("Aucun traite selectionne", categoryFrame);
     m_categoryLabel->setStyleSheet("color: #569cd6; font-weight: bold; font-size: 12px; border: none;");
+    m_categoryLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     categoryLayout->addWidget(m_categoryLabel);
 
     layout->addWidget(categoryFrame);

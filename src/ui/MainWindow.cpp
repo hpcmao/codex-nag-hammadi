@@ -404,13 +404,7 @@ void MainWindow::onGenerateImage() {
 }
 
 void MainWindow::onTreatiseSelected(const QString& code, const QString& title, const QString& category) {
-    m_currentTreatiseCode = code;
-    m_currentCategory = category;
-    setProjectModified(true);
-    statusBar()->showMessage(QString("Traite: %1 - %2 | Categorie: %3").arg(code, title, category));
-}
-
-void MainWindow::onTreatiseDoubleClicked(const QString& code, const QString& title, const QString& category) {
+    // Load treatise on single click
     m_currentTreatiseCode = code;
     m_currentCategory = category;
     setProjectModified(true);
@@ -419,20 +413,31 @@ void MainWindow::onTreatiseDoubleClicked(const QString& code, const QString& tit
     codex::core::ParsedTreatise treatise = m_textParser->extractTreatise(code);
 
     if (treatise.fullText.isEmpty()) {
-        QMessageBox::warning(this, "Erreur",
-            QString("Impossible d'extraire le contenu du traite: %1").arg(code));
+        statusBar()->showMessage(QString("Erreur: impossible d'extraire %1").arg(code));
         return;
     }
 
-    // Display in text viewer with category info
-    QString header = QString("# %1\n## %2\n### Categorie: %3\n\n").arg(code, title, category);
-    m_textViewer->setText(header + treatise.fullText);
+    // Display in text viewer with verse numbering (Page:Paragraph)
+    QString header = QString("══════════════════════════════════════\n"
+                             "  %1 - %2\n"
+                             "  Categorie: %3\n"
+                             "  Pages manuscrit: %4+\n"
+                             "══════════════════════════════════════\n\n")
+                     .arg(code, title, category)
+                     .arg(treatise.startPage);
+    m_textViewer->setTextWithVerses(header + treatise.fullText, treatise.startPage);
 
-    statusBar()->showMessage(QString("Traite: %1 - %2 | Categorie: %3 | %4 caracteres")
+    statusBar()->showMessage(QString("Traite: %1 - %2 | Categorie: %3 | Page %4 | %5 caracteres")
                              .arg(code, title, category)
+                             .arg(treatise.startPage)
                              .arg(treatise.fullText.length()));
 
     LOG_INFO(QString("Displayed treatise: %1, category: %2").arg(code, category));
+}
+
+void MainWindow::onTreatiseDoubleClicked(const QString& code, const QString& title, const QString& category) {
+    // Double-click does the same as single click (for compatibility)
+    onTreatiseSelected(code, title, category);
 }
 
 void MainWindow::onGenerateImageFromPreview(const QString& passage) {
@@ -697,7 +702,7 @@ void MainWindow::loadProject(const codex::db::Project& project) {
     if (!project.treatiseCode.isEmpty()) {
         codex::core::ParsedTreatise treatise = m_textParser->extractTreatise(project.treatiseCode);
         if (!treatise.fullText.isEmpty()) {
-            m_textViewer->setText(treatise.fullText);
+            m_textViewer->setTextWithVerses(treatise.fullText, treatise.startPage);
         }
     }
 

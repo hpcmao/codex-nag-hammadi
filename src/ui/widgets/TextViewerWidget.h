@@ -13,6 +13,7 @@ public:
 
     void loadFile(const QString& filePath);
     void setText(const QString& text);
+    void setTextWithVerses(const QString& text, int startPage);
     QString selectedText() const;
 
 signals:
