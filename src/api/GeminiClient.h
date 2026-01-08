@@ -17,6 +17,10 @@ public:
     // Generate image prompt from passage
     void generateImagePrompt(const QString& passage, const QString& style);
 
+    // Configuration
+    void setModel(const QString& model) { m_model = model; }
+    QString model() const { return m_model; }
+
 signals:
     void enrichmentCompleted(const QJsonObject& response);
     void imagePromptGenerated(const QString& prompt);

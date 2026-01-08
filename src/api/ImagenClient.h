@@ -19,6 +19,9 @@ public:
 
     void generateImage(const ImageGenerationParams& params);
 
+    // Override: ImagenClient uses API key for both providers
+    bool isConfigured() const override;
+
 signals:
     void imageGenerated(const QPixmap& image, const QString& prompt);
     void generationProgress(int percent);

@@ -127,9 +127,26 @@ bool Database::createTables() {
         return false;
     }
 
+    // Favorites table
+    if (!query.exec(R"(
+        CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            treatise_code TEXT NOT NULL,
+            passage_excerpt TEXT,
+            start_position INTEGER,
+            end_position INTEGER,
+            favorite_type TEXT NOT NULL DEFAULT 'star',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(treatise_code, start_position, end_position)
+        )
+    )")) {
+        LOG_ERROR(QString("Failed to create favorites table: %1").arg(query.lastError().text()));
+        return false;
+    }
+
     // Schema version
     if (!query.exec(R"(
-        INSERT OR IGNORE INTO config (key, value) VALUES ('schema_version', '1')
+        INSERT OR IGNORE INTO config (key, value) VALUES ('schema_version', '2')
     )")) {
         LOG_ERROR(QString("Failed to set schema version: %1").arg(query.lastError().text()));
         return false;

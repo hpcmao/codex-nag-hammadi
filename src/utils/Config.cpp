@@ -28,13 +28,13 @@ bool Config::load() {
         // Create default config
         m_config = QJsonObject{
             {"apis", QJsonObject{
-                {"llm_provider", "claude"},  // "claude" or "gemini"
+                {"llm_provider", "gemini"},  // "claude" or "gemini"
                 {"claude", QJsonObject{
                     {"model", "claude-sonnet-4-20250514"},
                     {"max_tokens", 1000}
                 }},
                 {"gemini", QJsonObject{
-                    {"model", "gemini-2.0-flash"}
+                    {"model", "gemini-3-pro-preview"}
                 }},
                 {"imagen", QJsonObject{
                     {"model", "imagen-3.0-generate-001"},
@@ -53,7 +53,8 @@ bool Config::load() {
                 {"edge_tts", QJsonObject{
                     {"voice_id", "fr-FR-HenriNeural"}
                 }},
-                {"google_ai_provider", "aistudio"},  // "aistudio" or "vertex"
+                {"google_ai_provider", "vertex"},      // "aistudio" or "vertex" (for images/videos)
+                {"llm_google_provider", "aistudio"},   // "aistudio" or "vertex" (for Gemini LLM)
                 {"vertex", QJsonObject{
                     {"project_id", ""},
                     {"region", "us-central1"},
@@ -233,12 +234,36 @@ void Config::setEdgeTtsVoice(const QString& voiceId) {
 }
 
 QString Config::googleAiProvider() const {
-    return m_config["apis"].toObject()["google_ai_provider"].toString("aistudio");
+    return m_config["apis"].toObject()["google_ai_provider"].toString("vertex");
 }
 
 void Config::setGoogleAiProvider(const QString& provider) {
     QJsonObject apis = m_config["apis"].toObject();
     apis["google_ai_provider"] = provider;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::llmGoogleProvider() const {
+    return m_config["apis"].toObject()["llm_google_provider"].toString("aistudio");
+}
+
+void Config::setLlmGoogleProvider(const QString& provider) {
+    QJsonObject apis = m_config["apis"].toObject();
+    apis["llm_google_provider"] = provider;
+    m_config["apis"] = apis;
+    save();
+}
+
+QString Config::geminiModel() const {
+    return m_config["apis"].toObject()["gemini"].toObject()["model"].toString("gemini-3-pro-preview");
+}
+
+void Config::setGeminiModel(const QString& model) {
+    QJsonObject apis = m_config["apis"].toObject();
+    QJsonObject gemini = apis["gemini"].toObject();
+    gemini["model"] = model;
+    apis["gemini"] = gemini;
     m_config["apis"] = apis;
     save();
 }

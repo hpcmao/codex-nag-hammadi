@@ -32,7 +32,7 @@ public:
     void setProvider(GoogleAIProvider provider);
     GoogleAIProvider provider() const { return m_provider; }
 
-    bool isConfigured() const;
+    virtual bool isConfigured() const;
 
 signals:
     void requestStarted();

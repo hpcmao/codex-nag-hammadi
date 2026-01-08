@@ -33,6 +33,9 @@ ThemeColors ThemeManager::darkTheme() {
     colors.scrollHandle = "#5a5a5a";
     colors.error = "#f44336";
     colors.success = "#4caf50";
+    // Alternating rows - subtle contrast for readability
+    colors.rowEven = "#1e1e1e";   // Same as background
+    colors.rowOdd = "#262626";    // Slightly lighter
     return colors;
 }
 
@@ -52,6 +55,9 @@ ThemeColors ThemeManager::lightTheme() {
     colors.scrollHandle = "#c0c0c0";
     colors.error = "#d32f2f";
     colors.success = "#388e3c";
+    // Alternating rows - subtle contrast for readability
+    colors.rowEven = "#ffffff";   // Same as background
+    colors.rowOdd = "#f8f8f8";    // Slightly darker
     return colors;
 }
 
@@ -63,6 +69,7 @@ void ThemeManager::setTheme(const QString& themeName) {
         m_colors = darkTheme();
     }
     applyAccentColor();
+    applyDamierColors();
     LOG_INFO(QString("Theme changed to: %1").arg(themeName));
 }
 
@@ -76,6 +83,37 @@ void ThemeManager::applyAccentColor() {
     m_colors.accent = m_accentColor;
     m_colors.accentHover = adjustColor(m_accentColor, 20);
     m_colors.statusBar = m_accentColor;
+}
+
+void ThemeManager::applyDamierColors() {
+    if (!m_damier.enabled) {
+        // Same color for both rows (no alternating)
+        m_colors.rowOdd = m_colors.rowEven;
+        return;
+    }
+
+    // Calculate odd row color based on contrast setting (0-100)
+    QColor baseColor(m_colors.rowEven);
+    int adjustment = m_damier.contrast / 4;  // Max ~25 units of lightness change
+
+    if (m_themeName == "dark") {
+        // Lighten for dark theme
+        m_colors.rowOdd = adjustColor(m_colors.rowEven, adjustment);
+    } else {
+        // Darken for light theme
+        m_colors.rowOdd = adjustColor(m_colors.rowEven, -adjustment);
+    }
+}
+
+ThemeColors ThemeManager::colors() const {
+    return m_colors;
+}
+
+void ThemeManager::setDamierSettings(const DamierSettings& settings) {
+    m_damier = settings;
+    applyDamierColors();
+    LOG_INFO(QString("Damier settings changed: enabled=%1, contrast=%2")
+             .arg(m_damier.enabled ? "true" : "false").arg(m_damier.contrast));
 }
 
 QString ThemeManager::adjustColor(const QString& baseColor, int lightenAmount) const {
@@ -370,6 +408,11 @@ void ThemeManager::load() {
     m_fonts.textFamily = config.value("appearance/text_font_family", "Consolas").toString();
     m_fonts.textSize = config.value("appearance/text_font_size", 11).toInt();
 
+    // Load damier settings
+    m_damier.enabled = config.value("appearance/damier_enabled", true).toBool();
+    m_damier.contrast = config.value("appearance/damier_contrast", 30).toInt();
+    applyDamierColors();
+
     LOG_INFO(QString("Theme loaded: %1, accent: %2").arg(m_themeName, m_accentColor));
 }
 
@@ -382,6 +425,8 @@ void ThemeManager::save() {
     config.setValue("appearance/font_size", m_fonts.uiSize);
     config.setValue("appearance/text_font_family", m_fonts.textFamily);
     config.setValue("appearance/text_font_size", m_fonts.textSize);
+    config.setValue("appearance/damier_enabled", m_damier.enabled);
+    config.setValue("appearance/damier_contrast", m_damier.contrast);
 
     config.save();
     LOG_INFO("Theme settings saved");

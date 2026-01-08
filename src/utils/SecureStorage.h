@@ -34,7 +34,8 @@ public:
 
     // Services prédéfinis
     static constexpr const char* SERVICE_CLAUDE = "claude_api";
-    static constexpr const char* SERVICE_IMAGEN = "imagen_api";
+    static constexpr const char* SERVICE_AISTUDIO = "aistudio_api";  // Google AI Studio (Gemini prompts)
+    static constexpr const char* SERVICE_IMAGEN = "imagen_api";       // Vertex AI (images/videos)
     static constexpr const char* SERVICE_ELEVENLABS = "elevenlabs_api";
 
 private:

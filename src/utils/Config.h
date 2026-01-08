@@ -27,7 +27,9 @@ public:
     QString edgeTtsVoice() const;     // Edge TTS voice ID
 
     // Google AI provider settings
-    QString googleAiProvider() const;       // "aistudio" or "vertex"
+    QString googleAiProvider() const;       // "aistudio" or "vertex" (for images/videos)
+    QString llmGoogleProvider() const;      // "aistudio" or "vertex" (for Gemini LLM)
+    QString geminiModel() const;            // "gemini-3-pro-preview" etc.
     QString vertexProjectId() const;
     QString vertexRegion() const;
     QString vertexServiceAccountPath() const;
@@ -47,6 +49,8 @@ public:
     void setTtsProvider(const QString& provider);
     void setEdgeTtsVoice(const QString& voiceId);
     void setGoogleAiProvider(const QString& provider);
+    void setLlmGoogleProvider(const QString& provider);
+    void setGeminiModel(const QString& model);
     void setVertexProjectId(const QString& projectId);
     void setVertexRegion(const QString& region);
     void setVertexServiceAccountPath(const QString& path);

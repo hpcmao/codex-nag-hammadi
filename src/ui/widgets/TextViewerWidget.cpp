@@ -1,13 +1,69 @@
 #include "TextViewerWidget.h"
 #include "utils/Logger.h"
+#include "utils/ThemeManager.h"
 
 #include <QVBoxLayout>
 #include <QFile>
 #include <QTextStream>
 #include <QFont>
 #include <QRegularExpression>
+#include <QScrollBar>
+#include <QTextBlock>
+#include <QPaintEvent>
 
 namespace codex::ui {
+
+// ============================================================================
+// AlternatingTextEdit implementation
+// ============================================================================
+
+AlternatingTextEdit::AlternatingTextEdit(QWidget* parent)
+    : QPlainTextEdit(parent)
+    , m_evenColor("#1e1e1e")
+    , m_oddColor("#262626")
+{
+}
+
+void AlternatingTextEdit::setAlternatingColors(const QColor& even, const QColor& odd) {
+    m_evenColor = even;
+    m_oddColor = odd;
+    viewport()->update();
+}
+
+void AlternatingTextEdit::paintEvent(QPaintEvent* event) {
+    // First, paint the alternating row backgrounds
+    QPainter painter(viewport());
+
+    QTextBlock block = firstVisibleBlock();
+    int blockNumber = block.blockNumber();
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    int bottom = top + qRound(blockBoundingRect(block).height());
+
+    while (block.isValid() && top <= event->rect().bottom()) {
+        if (block.isVisible() && bottom >= event->rect().top()) {
+            // Determine if even or odd line
+            QColor bgColor = (blockNumber % 2 == 0) ? m_evenColor : m_oddColor;
+
+            // Draw the background rectangle for this line
+            QRectF lineRect(0, top, viewport()->width(), blockBoundingRect(block).height());
+            painter.fillRect(lineRect, bgColor);
+        }
+
+        block = block.next();
+        top = bottom;
+        bottom = top + qRound(blockBoundingRect(block).height());
+        ++blockNumber;
+    }
+
+    painter.end();
+
+    // Now call the base class to paint the text on top
+    QPlainTextEdit::paintEvent(event);
+}
+
+// ============================================================================
+// TextViewerWidget implementation
+// ============================================================================
 
 TextViewerWidget::TextViewerWidget(QWidget* parent)
     : QWidget(parent)
@@ -15,25 +71,52 @@ TextViewerWidget::TextViewerWidget(QWidget* parent)
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
-    m_textEdit = new QPlainTextEdit(this);
+    m_textEdit = new AlternatingTextEdit(this);
     m_textEdit->setReadOnly(true);
     m_textEdit->setWordWrapMode(QTextOption::WordWrap);
 
     // Set monospace font for better readability
-    QFont font("Consolas", 11);
+    auto& theme = codex::utils::ThemeManager::instance();
+    QFont font(theme.fontSettings().textFamily, theme.fontSettings().textSize);
     font.setStyleHint(QFont::Monospace);
     m_textEdit->setFont(font);
+
+    // Set alternating colors from theme
+    updateColors();
 
     // Placeholder text
     m_textEdit->setPlaceholderText(
         "Ouvrez un fichier Codex (Fichier > Ouvrir Codex...)\n\n"
-        "Sélectionnez ensuite un passage de texte pour le transformer en image."
+        "Selectionnez ensuite un passage de texte pour le transformer en image."
     );
 
     layout->addWidget(m_textEdit);
 
     connect(m_textEdit, &QPlainTextEdit::selectionChanged,
             this, &TextViewerWidget::onSelectionChanged);
+
+    // Connect to theme changes
+    connect(&codex::utils::ThemeManager::instance(), &codex::utils::ThemeManager::themeChanged,
+            this, &TextViewerWidget::onThemeChanged);
+}
+
+void TextViewerWidget::updateColors() {
+    auto& theme = codex::utils::ThemeManager::instance();
+    auto colors = theme.colors();
+
+    m_textEdit->setAlternatingColors(
+        QColor(colors.rowEven),
+        QColor(colors.rowOdd)
+    );
+
+    // Also update font
+    QFont font(theme.fontSettings().textFamily, theme.fontSettings().textSize);
+    font.setStyleHint(QFont::Monospace);
+    m_textEdit->setFont(font);
+}
+
+void TextViewerWidget::onThemeChanged() {
+    updateColors();
 }
 
 void TextViewerWidget::loadFile(const QString& filePath) {

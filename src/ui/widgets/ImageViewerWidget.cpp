@@ -5,6 +5,8 @@
 #include <QHBoxLayout>
 #include <QToolBar>
 #include <QWheelEvent>
+#include <QPainter>
+#include <QGroupBox>
 
 namespace codex::ui {
 
@@ -135,6 +137,81 @@ void ImageViewerWidget::setupUi() {
 
     mainLayout->addLayout(controlsLayout);
 
+    // Plate (grid) controls row
+    auto* plateLayout = new QHBoxLayout();
+    plateLayout->setSpacing(5);
+
+    auto* plateLabel = new QLabel("Planche:", this);
+    plateLabel->setStyleSheet("color: #d4d4d4;");
+    plateLayout->addWidget(plateLabel);
+
+    m_plateSizeCombo = new QComboBox(this);
+    m_plateSizeCombo->addItem("2x2 (4 images)", "2x2");
+    m_plateSizeCombo->addItem("3x2 (6 images)", "3x2");
+    m_plateSizeCombo->addItem("3x3 (9 images)", "3x3");
+    m_plateSizeCombo->addItem("3x4 (12 images)", "3x4");
+    m_plateSizeCombo->addItem("4x4 (16 images)", "4x4");
+    m_plateSizeCombo->addItem("4x5 (20 images)", "4x5");
+    m_plateSizeCombo->addItem("5x6 (30 images)", "5x6");
+    m_plateSizeCombo->setMinimumWidth(120);
+    plateLayout->addWidget(m_plateSizeCombo);
+
+    m_addToPlateBtn = new QPushButton("+ Ajouter", this);
+    m_addToPlateBtn->setEnabled(false);
+    m_addToPlateBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #2d5a27;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 5px 10px;
+        }
+        QPushButton:hover { background-color: #3d7a37; }
+        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
+    )");
+    connect(m_addToPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::addToPlate);
+    plateLayout->addWidget(m_addToPlateBtn);
+
+    m_createPlateBtn = new QPushButton("Creer Planche", this);
+    m_createPlateBtn->setEnabled(false);
+    m_createPlateBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #6a3d9a;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 5px 10px;
+        }
+        QPushButton:hover { background-color: #8a5dba; }
+        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
+    )");
+    connect(m_createPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::createPlate);
+    plateLayout->addWidget(m_createPlateBtn);
+
+    m_clearPlateBtn = new QPushButton("Vider", this);
+    m_clearPlateBtn->setEnabled(false);
+    m_clearPlateBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #8b0000;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 5px 10px;
+        }
+        QPushButton:hover { background-color: #a52a2a; }
+        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
+    )");
+    connect(m_clearPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::clearPlate);
+    plateLayout->addWidget(m_clearPlateBtn);
+
+    plateLayout->addStretch();
+
+    m_plateStatusLabel = new QLabel("0 images", this);
+    m_plateStatusLabel->setStyleSheet("color: #888;");
+    plateLayout->addWidget(m_plateStatusLabel);
+
+    mainLayout->addLayout(plateLayout);
+
     // Status label
     m_statusLabel = new QLabel(this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
@@ -150,6 +227,7 @@ void ImageViewerWidget::setImage(const QPixmap& pixmap) {
     updateZoomedImage();
 
     m_saveBtn->setEnabled(true);
+    m_addToPlateBtn->setEnabled(true);
     m_statusLabel->setText(QString("Image: %1 x %2 | Zoom: %3%")
                            .arg(pixmap.width())
                            .arg(pixmap.height())
@@ -181,6 +259,7 @@ void ImageViewerWidget::showPlaceholder() {
         "</div>"
     );
     m_saveBtn->setEnabled(false);
+    m_addToPlateBtn->setEnabled(false);
     m_statusLabel->setText("En attente de generation");
 }
 
@@ -188,6 +267,7 @@ void ImageViewerWidget::clear() {
     m_originalPixmap = QPixmap();
     m_imageLabel->clear();
     m_saveBtn->setEnabled(false);
+    m_addToPlateBtn->setEnabled(false);
     m_statusLabel->clear();
 }
 
@@ -249,6 +329,98 @@ void ImageViewerWidget::updateZoomedImage() {
                            .arg(m_originalPixmap.width())
                            .arg(m_originalPixmap.height())
                            .arg(m_zoomPercent));
+}
+
+void ImageViewerWidget::addToPlate() {
+    if (m_originalPixmap.isNull()) return;
+
+    m_plateImages.append(m_originalPixmap);
+    updatePlateStatus();
+
+    LOG_INFO(QString("Added image to plate. Total: %1").arg(m_plateImages.size()));
+}
+
+void ImageViewerWidget::createPlate() {
+    if (m_plateImages.isEmpty()) return;
+
+    QSize gridSize = parsePlateSize();
+    int cols = gridSize.width();
+    int rows = gridSize.height();
+    int totalCells = cols * rows;
+
+    // Determine cell size based on first image
+    int cellWidth = 512;  // Default cell width
+    int cellHeight = 288; // 16:9 ratio
+
+    if (!m_plateImages.isEmpty()) {
+        // Use first image's aspect ratio
+        QPixmap first = m_plateImages.first();
+        cellWidth = first.width();
+        cellHeight = first.height();
+    }
+
+    // Create the composite image
+    int plateWidth = cols * cellWidth;
+    int plateHeight = rows * cellHeight;
+
+    QPixmap plate(plateWidth, plateHeight);
+    plate.fill(Qt::black);
+
+    QPainter painter(&plate);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+
+    for (int i = 0; i < qMin(m_plateImages.size(), totalCells); ++i) {
+        int row = i / cols;
+        int col = i % cols;
+        int x = col * cellWidth;
+        int y = row * cellHeight;
+
+        QPixmap scaled = m_plateImages[i].scaled(
+            cellWidth, cellHeight,
+            Qt::KeepAspectRatioByExpanding,
+            Qt::SmoothTransformation
+        );
+
+        // Center crop if needed
+        int srcX = (scaled.width() - cellWidth) / 2;
+        int srcY = (scaled.height() - cellHeight) / 2;
+
+        painter.drawPixmap(x, y, scaled, srcX, srcY, cellWidth, cellHeight);
+    }
+
+    painter.end();
+
+    // Display the plate
+    setImage(plate);
+    emit plateCreated(plate);
+
+    LOG_INFO(QString("Created plate %1x%2 with %3 images").arg(cols).arg(rows).arg(m_plateImages.size()));
+}
+
+void ImageViewerWidget::clearPlate() {
+    m_plateImages.clear();
+    updatePlateStatus();
+    LOG_INFO("Plate cleared");
+}
+
+void ImageViewerWidget::updatePlateStatus() {
+    int count = m_plateImages.size();
+    QSize gridSize = parsePlateSize();
+    int needed = gridSize.width() * gridSize.height();
+
+    m_plateStatusLabel->setText(QString("%1/%2 images").arg(count).arg(needed));
+
+    m_createPlateBtn->setEnabled(count > 0);
+    m_clearPlateBtn->setEnabled(count > 0);
+}
+
+QSize ImageViewerWidget::parsePlateSize() const {
+    QString size = m_plateSizeCombo->currentData().toString();
+    QStringList parts = size.split('x');
+    if (parts.size() == 2) {
+        return QSize(parts[0].toInt(), parts[1].toInt());
+    }
+    return QSize(2, 2);
 }
 
 } // namespace codex::ui

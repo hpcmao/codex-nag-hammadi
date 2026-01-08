@@ -6,6 +6,7 @@ add_library(codex_db STATIC
     repositories/PassageRepository.cpp
     repositories/ImageRepository.cpp
     repositories/AudioRepository.cpp
+    repositories/FavoriteRepository.cpp
 )
 
 target_include_directories(codex_db PUBLIC

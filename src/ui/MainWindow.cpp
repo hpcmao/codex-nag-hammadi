@@ -5,6 +5,7 @@
 #include "widgets/PassagePreviewWidget.h"
 #include "widgets/AudioPlayerWidget.h"
 #include "widgets/SlideshowWidget.h"
+#include "widgets/InfoDockWidget.h"
 #include "dialogs/SettingsDialog.h"
 #include "dialogs/ProjectDialog.h"
 #include "db/repositories/PassageRepository.h"
@@ -35,6 +36,8 @@
 #include <QDateTime>
 #include <QLabel>
 #include <QPushButton>
+#include <QDesktopServices>
+#include <QUrl>
 
 namespace codex::ui {
 
@@ -166,17 +169,17 @@ void MainWindow::setupUi() {
 
     setCentralWidget(mainSplitter);
 
+    // Info dock widget (API pricing/quotas)
+    m_infoDock = new InfoDockWidget(this);
+    addDockWidget(Qt::RightDockWidgetArea, m_infoDock);
+    m_infoDock->hide();  // Hidden by default
+
     // Toolbar
     auto* toolbar = addToolBar("Main");
     toolbar->setMovable(false);
 
     auto* openAction = toolbar->addAction("Ouvrir");
     connect(openAction, &QAction::triggered, this, &MainWindow::onOpenFile);
-
-    toolbar->addSeparator();
-
-    auto* generateAction = toolbar->addAction("Générer Image");
-    connect(generateAction, &QAction::triggered, this, &MainWindow::onGenerateImage);
 
     toolbar->addSeparator();
 
@@ -228,6 +231,11 @@ void MainWindow::setupUi() {
     connect(browseBtn, &QPushButton::clicked, this, &MainWindow::onBrowseOutputFolder);
     settingsToolbar->addWidget(browseBtn);
 
+    auto* openImagesBtn = new QPushButton("Ouvrir", this);
+    openImagesBtn->setMaximumWidth(50);
+    connect(openImagesBtn, &QPushButton::clicked, this, &MainWindow::onOpenImagesFolder);
+    settingsToolbar->addWidget(openImagesBtn);
+
     // Videos output folder
     settingsToolbar->addWidget(new QLabel(" Videos: ", this));
     m_videoFolderEdit = new QLineEdit(this);
@@ -240,6 +248,11 @@ void MainWindow::setupUi() {
     browseVideoBtn->setMaximumWidth(30);
     connect(browseVideoBtn, &QPushButton::clicked, this, &MainWindow::onBrowseVideoFolder);
     settingsToolbar->addWidget(browseVideoBtn);
+
+    auto* openVideosBtn = new QPushButton("Ouvrir", this);
+    openVideosBtn->setMaximumWidth(50);
+    connect(openVideosBtn, &QPushButton::clicked, this, &MainWindow::onOpenVideosFolder);
+    settingsToolbar->addWidget(openVideosBtn);
 
     // Status bar
     statusBar()->showMessage("Prêt");
@@ -284,6 +297,28 @@ void MainWindow::setupMenus() {
 
     auto* settingsAction = editMenu->addAction("&Paramètres...");
     connect(settingsAction, &QAction::triggered, this, &MainWindow::onShowSettings);
+
+    // View menu
+    auto* viewMenu = menuBar()->addMenu("&Affichage");
+
+    auto* infoAction = viewMenu->addAction("&Informations API...");
+    infoAction->setShortcut(QKeySequence(Qt::Key_F1));
+    infoAction->setCheckable(true);
+    connect(infoAction, &QAction::triggered, this, [this](bool checked) {
+        m_infoDock->setVisible(checked);
+    });
+    connect(m_infoDock, &QDockWidget::visibilityChanged, infoAction, &QAction::setChecked);
+
+    viewMenu->addSeparator();
+
+    auto* openImagesFolderAction = viewMenu->addAction("Ouvrir dossier &Images");
+    connect(openImagesFolderAction, &QAction::triggered, this, &MainWindow::onOpenImagesFolder);
+
+    auto* openVideosFolderAction = viewMenu->addAction("Ouvrir dossier &Videos");
+    connect(openVideosFolderAction, &QAction::triggered, this, &MainWindow::onOpenVideosFolder);
+
+    auto* openAudioFolderAction = viewMenu->addAction("Ouvrir dossier &Audio");
+    connect(openAudioFolderAction, &QAction::triggered, this, &MainWindow::onOpenAudioFolder);
 
     // Help menu
     auto* helpMenu = menuBar()->addMenu("&Aide");
@@ -447,6 +482,9 @@ void MainWindow::onTreatiseSelected(const QString& code, const QString& title, c
     m_currentTreatiseCode = code;
     m_currentCategory = category;
     setProjectModified(true);
+
+    // Update passage preview with treatise code for favorites
+    m_passagePreview->setTreatiseCode(code);
 
     // Extract and display treatise content
     codex::core::ParsedTreatise treatise = m_textParser->extractTreatise(code);
@@ -940,6 +978,45 @@ void MainWindow::onTestVoice() {
     m_edgeTTSClient->generateSpeech(testText, settings);
 
     LOG_INFO(QString("Testing voice: %1").arg(voiceId));
+}
+
+void MainWindow::onOpenImagesFolder() {
+    QString path = codex::utils::Config::instance().outputImagesPath();
+    if (path.isEmpty()) {
+        path = QDir::homePath();
+    }
+    QDir dir(path);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    LOG_INFO(QString("Opening images folder: %1").arg(path));
+}
+
+void MainWindow::onOpenVideosFolder() {
+    QString path = codex::utils::Config::instance().outputVideosPath();
+    if (path.isEmpty()) {
+        path = QDir::homePath();
+    }
+    QDir dir(path);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    LOG_INFO(QString("Opening videos folder: %1").arg(path));
+}
+
+void MainWindow::onOpenAudioFolder() {
+    QString path = codex::utils::Config::instance().outputAudioPath();
+    if (path.isEmpty()) {
+        path = QDir::homePath();
+    }
+    QDir dir(path);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    LOG_INFO(QString("Opening audio folder: %1").arg(path));
 }
 
 } // namespace codex::ui

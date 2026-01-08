@@ -6,6 +6,8 @@
 #include <QScrollArea>
 #include <QPushButton>
 #include <QSlider>
+#include <QComboBox>
+#include <QVector>
 
 namespace codex::ui {
 
@@ -23,6 +25,12 @@ public:
     QPixmap currentImage() const { return m_originalPixmap; }
     bool hasImage() const { return !m_originalPixmap.isNull(); }
 
+    // Plate (grid) functionality
+    void addToPlate();
+    void createPlate();
+    void clearPlate();
+    int plateImageCount() const { return m_plateImages.size(); }
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -33,6 +41,7 @@ public slots:
 signals:
     void zoomChanged(int percent);
     void imageSaveRequested();
+    void plateCreated(const QPixmap& plate);
 
 private:
     void setupUi();
@@ -46,6 +55,17 @@ private:
 
     QPixmap m_originalPixmap;
     int m_zoomPercent = 100;
+
+    // Plate functionality
+    QVector<QPixmap> m_plateImages;
+    QComboBox* m_plateSizeCombo = nullptr;
+    QPushButton* m_addToPlateBtn = nullptr;
+    QPushButton* m_createPlateBtn = nullptr;
+    QPushButton* m_clearPlateBtn = nullptr;
+    QLabel* m_plateStatusLabel = nullptr;
+
+    void updatePlateStatus();
+    QSize parsePlateSize() const;
 
     static constexpr int MIN_ZOOM = 10;
     static constexpr int MAX_ZOOM = 400;

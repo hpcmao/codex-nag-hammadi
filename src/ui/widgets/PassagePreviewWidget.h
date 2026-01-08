@@ -16,6 +16,9 @@ public:
     // Set the selected passage
     void setPassage(const QString& text, int startPos, int endPos);
 
+    // Set current treatise code (for favorites)
+    void setTreatiseCode(const QString& code);
+
     // Clear the preview
     void clear();
 
@@ -27,15 +30,19 @@ signals:
     void generateImageRequested(const QString& passage);
     void generateAudioRequested(const QString& passage);
     void generateVideoRequested(const QString& passage);
+    void favoriteChanged();
 
 private slots:
     void onGenerateImage();
     void onGenerateAudio();
     void onGenerateVideo();
+    void onToggleStar();
+    void onToggleHeart();
 
 private:
     void setupUi();
     void updateStats();
+    void updateFavoriteButtons();
 
     QTextEdit* m_previewEdit;
     QLabel* m_statsLabel;
@@ -43,8 +50,11 @@ private:
     QPushButton* m_generateImageBtn;
     QPushButton* m_generateAudioBtn;
     QPushButton* m_generateVideoBtn;
+    QPushButton* m_starBtn;
+    QPushButton* m_heartBtn;
 
     QString m_passage;
+    QString m_treatiseCode;
     int m_startPos = 0;
     int m_endPos = 0;
 };

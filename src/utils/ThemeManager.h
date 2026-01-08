@@ -21,6 +21,9 @@ struct ThemeColors {
     QString scrollHandle;    // Scrollbar handle
     QString error;           // Error color
     QString success;         // Success color
+    // Alternating row colors for text readability
+    QString rowEven;         // Even row background
+    QString rowOdd;          // Odd row background
 };
 
 struct FontSettings {
@@ -28,6 +31,11 @@ struct FontSettings {
     int uiSize = 10;
     QString textFamily = "Consolas";
     int textSize = 11;
+};
+
+struct DamierSettings {
+    bool enabled = true;
+    int contrast = 30;  // 0-100, intensity of alternating rows
 };
 
 class ThemeManager : public QObject {
@@ -48,8 +56,12 @@ public:
     FontSettings fontSettings() const { return m_fonts; }
     void setFontSettings(const FontSettings& settings);
 
-    // Get current colors
-    ThemeColors colors() const { return m_colors; }
+    // Damier (alternating rows) settings
+    DamierSettings damierSettings() const { return m_damier; }
+    void setDamierSettings(const DamierSettings& settings);
+
+    // Get current colors (with damier applied)
+    ThemeColors colors() const;
 
     // Generate complete stylesheet
     QString generateStyleSheet() const;
@@ -75,12 +87,14 @@ private:
     ThemeManager& operator=(const ThemeManager&) = delete;
 
     void applyAccentColor();
+    void applyDamierColors();
     QString adjustColor(const QString& baseColor, int lightenAmount) const;
 
     QString m_themeName = "dark";
     QString m_accentColor = "#094771";
     ThemeColors m_colors;
     FontSettings m_fonts;
+    DamierSettings m_damier;
 };
 
 } // namespace codex::utils

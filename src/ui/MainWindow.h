@@ -27,6 +27,7 @@ class TreatiseListWidget;
 class PassagePreviewWidget;
 class AudioPlayerWidget;
 class SlideshowWidget;
+class InfoDockWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -88,6 +89,7 @@ private:
     codex::api::EdgeTTSClient* m_edgeTTSClient = nullptr;
     codex::api::VeoClient* m_veoClient = nullptr;
     SlideshowWidget* m_slideshowWidget = nullptr;
+    InfoDockWidget* m_infoDock = nullptr;
 
     // Project management
     codex::db::Project m_currentProject;
@@ -108,6 +110,9 @@ private:
     void onTestVoice();
     void onBrowseOutputFolder();
     void onBrowseVideoFolder();
+    void onOpenImagesFolder();
+    void onOpenVideosFolder();
+    void onOpenAudioFolder();
     void setProjectModified(bool modified);
     void loadProject(const codex::db::Project& project);
     void showRecentProjectsOnStartup();

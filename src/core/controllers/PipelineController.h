@@ -7,6 +7,7 @@
 
 namespace codex::api {
 class ClaudeClient;
+class GeminiClient;
 class ImagenClient;
 }
 
@@ -69,6 +70,8 @@ signals:
 private slots:
     void onClaudeEnrichmentCompleted(const QJsonObject& response);
     void onClaudeError(const QString& error);
+    void onGeminiEnrichmentCompleted(const QJsonObject& response);
+    void onGeminiError(const QString& error);
     void onImagenImageGenerated(const QPixmap& image, const QString& prompt);
     void onImagenError(const QString& error);
     void onImagenProgress(int percent);
@@ -83,6 +86,7 @@ private:
 
     // Components
     codex::api::ClaudeClient* m_claudeClient = nullptr;
+    codex::api::GeminiClient* m_geminiClient = nullptr;
     codex::api::ImagenClient* m_imagenClient = nullptr;
     TextParser* m_textParser = nullptr;
     PromptBuilder* m_promptBuilder = nullptr;

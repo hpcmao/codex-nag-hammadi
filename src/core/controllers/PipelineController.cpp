@@ -1,5 +1,6 @@
 #include "PipelineController.h"
 #include "api/ClaudeClient.h"
+#include "api/GeminiClient.h"
 #include "api/ImagenClient.h"
 #include "core/services/TextParser.h"
 #include "core/services/PromptBuilder.h"
@@ -9,6 +10,7 @@
 #include "utils/Logger.h"
 
 #include <QJsonArray>
+#include <QJsonDocument>
 
 namespace codex::core {
 
@@ -17,6 +19,7 @@ PipelineController::PipelineController(QObject* parent)
 {
     // Create API clients
     m_claudeClient = new codex::api::ClaudeClient(this);
+    m_geminiClient = new codex::api::GeminiClient(this);
     m_imagenClient = new codex::api::ImagenClient(this);
     m_textParser = new TextParser();
     m_promptBuilder = new PromptBuilder();
@@ -28,8 +31,14 @@ PipelineController::PipelineController(QObject* parent)
 
     m_claudeClient->setApiKey(storage.getApiKey(storage.SERVICE_CLAUDE));
 
-    // Configure Google AI provider (AI Studio or Vertex AI)
-    // Les deux utilisent la même clé API, seul l'endpoint change
+    // Configure Gemini (for prompt enrichment) - uses AI Studio (separate key)
+    m_geminiClient->setProvider(codex::api::GoogleAIProvider::AIStudio);
+    m_geminiClient->setApiKey(storage.getApiKey(storage.SERVICE_AISTUDIO));  // AI Studio key (free tier)
+    m_geminiClient->setModel(config.geminiModel());
+    LOG_INFO("Gemini LLM: Using AI Studio endpoint (free tier)");
+    LOG_INFO(QString("Gemini model: %1").arg(config.geminiModel()));
+
+    // Configure Google AI provider for images/videos (Vertex AI by default)
     QString googleProvider = config.googleAiProvider();
     if (googleProvider == "vertex") {
         m_imagenClient->setProvider(codex::api::GoogleAIProvider::VertexAI);
@@ -40,11 +49,17 @@ PipelineController::PipelineController(QObject* parent)
     }
     m_imagenClient->setApiKey(storage.getApiKey(storage.SERVICE_IMAGEN));
 
-    // Connect Claude signals
+    // Connect Claude signals (fallback)
     connect(m_claudeClient, &codex::api::ClaudeClient::enrichmentCompleted,
             this, &PipelineController::onClaudeEnrichmentCompleted);
     connect(m_claudeClient, &codex::api::ClaudeClient::errorOccurred,
             this, &PipelineController::onClaudeError);
+
+    // Connect Gemini signals
+    connect(m_geminiClient, &codex::api::GeminiClient::enrichmentCompleted,
+            this, &PipelineController::onGeminiEnrichmentCompleted);
+    connect(m_geminiClient, &codex::api::GeminiClient::errorOccurred,
+            this, &PipelineController::onGeminiError);
 
     // Connect Imagen signals
     connect(m_imagenClient, &codex::api::ImagenClient::imageGenerated,
@@ -146,10 +161,37 @@ void PipelineController::analyzePassage() {
 void PipelineController::enrichWithClaude() {
     if (m_cancelled) return;
 
-    // Check if Claude is configured
+    auto& config = codex::utils::Config::instance();
+    QString llmProvider = config.llmProvider();
+
+    // Use Gemini if configured (default)
+    if (llmProvider == "gemini") {
+        if (!m_geminiClient->isConfigured()) {
+            LOG_WARN("Gemini API not configured, using direct Imagen prompt");
+            m_enrichedScene = m_currentPassage.left(500);
+            m_enrichedEmotion = "mystique";
+            m_visualKeywords = m_detectedEntities;
+            emit progressUpdated(50, "Enrichissement ignore (pas de cle Gemini)");
+            generateImage();
+            return;
+        }
+
+        setState(PipelineState::EnrichingWithClaude, "Enrichissement avec Gemini 3 Pro...");
+        emit progressUpdated(20, "Appel Gemini API");
+
+        QString geminiPrompt = m_promptBuilder->buildClaudePrompt(
+            m_currentPassage,
+            m_detectedEntities,
+            m_currentCategory
+        );
+
+        m_geminiClient->enrichPassage(geminiPrompt);
+        return;
+    }
+
+    // Fallback to Claude
     if (!m_claudeClient->isConfigured()) {
         LOG_WARN("Claude API not configured, using direct Imagen prompt");
-        // Skip Claude, go directly to image generation with basic prompt
         m_enrichedScene = m_currentPassage.left(500);
         m_enrichedEmotion = "mystique";
         m_visualKeywords = m_detectedEntities;
@@ -162,7 +204,6 @@ void PipelineController::enrichWithClaude() {
     setState(PipelineState::EnrichingWithClaude, "Enrichissement avec Claude...");
     emit progressUpdated(20, "Appel Claude API");
 
-    // Build prompt for Claude
     QString claudePrompt = m_promptBuilder->buildClaudePrompt(
         m_currentPassage,
         m_detectedEntities,
@@ -216,6 +257,69 @@ void PipelineController::onClaudeError(const QString& error) {
     m_visualKeywords = m_detectedEntities;
 
     emit progressUpdated(50, "Enrichissement echoue, generation directe");
+    generateImage();
+}
+
+void PipelineController::onGeminiEnrichmentCompleted(const QJsonObject& response) {
+    if (m_cancelled) return;
+
+    LOG_INFO("Gemini enrichment completed");
+    m_lastResult.claudeResponse = response;  // Reuse same field for response
+
+    // Parse Gemini response - it returns text directly
+    QString text = response["text"].toString();
+    if (!text.isEmpty()) {
+        // Try to parse JSON from text if it looks like JSON
+        if (text.contains("{") && text.contains("}")) {
+            int start = text.indexOf("{");
+            int end = text.lastIndexOf("}") + 1;
+            QString jsonStr = text.mid(start, end - start);
+            QJsonDocument doc = QJsonDocument::fromJson(jsonStr.toUtf8());
+            if (!doc.isNull()) {
+                QJsonObject parsed = doc.object();
+                m_enrichedScene = parsed["scene"].toString();
+                m_enrichedEmotion = parsed["emotion"].toString();
+                QJsonArray visualElements = parsed["visual_elements"].toArray();
+                m_visualKeywords.clear();
+                for (const auto& elem : visualElements) {
+                    m_visualKeywords.append(elem.toString());
+                }
+            }
+        }
+
+        // If parsing failed or no structured data, use text directly
+        if (m_enrichedScene.isEmpty()) {
+            m_enrichedScene = text.left(1000);
+        }
+        if (m_enrichedEmotion.isEmpty()) {
+            m_enrichedEmotion = "mystique";
+        }
+        if (m_visualKeywords.isEmpty()) {
+            m_visualKeywords = m_detectedEntities;
+        }
+    } else {
+        m_enrichedScene = m_currentPassage.left(500);
+        m_enrichedEmotion = "mystique";
+        m_visualKeywords = m_detectedEntities;
+    }
+
+    emit progressUpdated(50, "Enrichissement Gemini termine");
+
+    // Step 3: Generate image
+    generateImage();
+}
+
+void PipelineController::onGeminiError(const QString& error) {
+    if (m_cancelled) return;
+
+    LOG_WARN(QString("Gemini error: %1 - falling back to direct generation").arg(error));
+
+    // Fallback: use passage directly
+    m_enrichedScene = m_currentPassage.left(500);
+    m_enrichedEmotion = "mystique";
+    m_visualKeywords = m_detectedEntities;
+
+    emit progressUpdated(50, "Enrichissement Gemini echoue, generation directe");
     generateImage();
 }
 

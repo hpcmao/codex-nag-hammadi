@@ -1,5 +1,6 @@
 #include "PassagePreviewWidget.h"
 #include "utils/Logger.h"
+#include "db/repositories/FavoriteRepository.h"
 
 #include <QVBoxLayout>
 #include <QRegularExpression>
@@ -20,11 +21,69 @@ void PassagePreviewWidget::setupUi() {
     mainLayout->setContentsMargins(5, 5, 5, 5);
     mainLayout->setSpacing(5);
 
-    // Title
+    // Title row with favorite buttons
+    auto* titleLayout = new QHBoxLayout();
+
     auto* titleLabel = new QLabel("Passage Selectionne", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 12px; color: #d4d4d4;");
     titleLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    mainLayout->addWidget(titleLabel);
+    titleLayout->addWidget(titleLabel);
+
+    titleLayout->addStretch();
+
+    // Star button
+    m_starBtn = new QPushButton(this);
+    m_starBtn->setText(QString::fromUtf8("\u2606"));  // Empty star
+    m_starBtn->setToolTip("Marquer avec une etoile");
+    m_starBtn->setFixedSize(30, 30);
+    m_starBtn->setEnabled(false);
+    m_starBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: transparent;
+            border: 1px solid #3d3d3d;
+            border-radius: 15px;
+            font-size: 16px;
+            color: #888;
+        }
+        QPushButton:hover {
+            background-color: #3d3d3d;
+            color: #ffd700;
+        }
+        QPushButton:disabled {
+            color: #444;
+            border-color: #2d2d2d;
+        }
+    )");
+    connect(m_starBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onToggleStar);
+    titleLayout->addWidget(m_starBtn);
+
+    // Heart button
+    m_heartBtn = new QPushButton(this);
+    m_heartBtn->setText(QString::fromUtf8("\u2661"));  // Empty heart
+    m_heartBtn->setToolTip("Marquer comme favori (coeur)");
+    m_heartBtn->setFixedSize(30, 30);
+    m_heartBtn->setEnabled(false);
+    m_heartBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: transparent;
+            border: 1px solid #3d3d3d;
+            border-radius: 15px;
+            font-size: 16px;
+            color: #888;
+        }
+        QPushButton:hover {
+            background-color: #3d3d3d;
+            color: #ff4444;
+        }
+        QPushButton:disabled {
+            color: #444;
+            border-color: #2d2d2d;
+        }
+    )");
+    connect(m_heartBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onToggleHeart);
+    titleLayout->addWidget(m_heartBtn);
+
+    mainLayout->addLayout(titleLayout);
 
     // Preview text area
     m_previewEdit = new QTextEdit(this);
@@ -135,6 +194,10 @@ void PassagePreviewWidget::setupUi() {
     setMaximumHeight(250);
 }
 
+void PassagePreviewWidget::setTreatiseCode(const QString& code) {
+    m_treatiseCode = code;
+}
+
 void PassagePreviewWidget::setPassage(const QString& text, int startPos, int endPos) {
     m_passage = text;
     m_startPos = startPos;
@@ -154,6 +217,11 @@ void PassagePreviewWidget::setPassage(const QString& text, int startPos, int end
     m_generateImageBtn->setEnabled(valid);
     m_generateAudioBtn->setEnabled(valid);
     m_generateVideoBtn->setEnabled(valid);
+    m_starBtn->setEnabled(valid && !m_treatiseCode.isEmpty());
+    m_heartBtn->setEnabled(valid && !m_treatiseCode.isEmpty());
+
+    // Update favorite button states
+    updateFavoriteButtons();
 
     if (valid) {
         LOG_INFO(QString("Passage selected: %1 chars, %2 words")
@@ -172,6 +240,12 @@ void PassagePreviewWidget::clear() {
     m_generateImageBtn->setEnabled(false);
     m_generateAudioBtn->setEnabled(false);
     m_generateVideoBtn->setEnabled(false);
+    m_starBtn->setEnabled(false);
+    m_heartBtn->setEnabled(false);
+
+    // Reset button icons
+    m_starBtn->setText(QString::fromUtf8("\u2606"));  // Empty star
+    m_heartBtn->setText(QString::fromUtf8("\u2661"));  // Empty heart
 }
 
 void PassagePreviewWidget::updateStats() {
@@ -180,6 +254,143 @@ void PassagePreviewWidget::updateStats() {
 
     m_statsLabel->setText(QString("%1 caracteres | %2 mots").arg(charCount).arg(wordCount));
     m_positionLabel->setText(QString("Position: %1-%2").arg(m_startPos).arg(m_endPos));
+}
+
+void PassagePreviewWidget::updateFavoriteButtons() {
+    if (m_treatiseCode.isEmpty() || m_passage.isEmpty()) {
+        m_starBtn->setText(QString::fromUtf8("\u2606"));  // Empty star
+        m_heartBtn->setText(QString::fromUtf8("\u2661"));  // Empty heart
+        return;
+    }
+
+    codex::db::FavoriteRepository repo;
+    auto favorite = repo.getFavorite(m_treatiseCode, m_startPos, m_endPos);
+
+    if (favorite.has_value()) {
+        if (favorite->type == codex::db::FavoriteType::Star) {
+            m_starBtn->setText(QString::fromUtf8("\u2605"));  // Filled star
+            m_starBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: transparent;
+                    border: 1px solid #ffd700;
+                    border-radius: 15px;
+                    font-size: 16px;
+                    color: #ffd700;
+                }
+                QPushButton:hover {
+                    background-color: #3d3d3d;
+                }
+            )");
+            m_heartBtn->setText(QString::fromUtf8("\u2661"));  // Empty heart
+            m_heartBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: transparent;
+                    border: 1px solid #3d3d3d;
+                    border-radius: 15px;
+                    font-size: 16px;
+                    color: #888;
+                }
+                QPushButton:hover {
+                    background-color: #3d3d3d;
+                    color: #ff4444;
+                }
+            )");
+        } else {
+            m_heartBtn->setText(QString::fromUtf8("\u2665"));  // Filled heart
+            m_heartBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: transparent;
+                    border: 1px solid #ff4444;
+                    border-radius: 15px;
+                    font-size: 16px;
+                    color: #ff4444;
+                }
+                QPushButton:hover {
+                    background-color: #3d3d3d;
+                }
+            )");
+            m_starBtn->setText(QString::fromUtf8("\u2606"));  // Empty star
+            m_starBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: transparent;
+                    border: 1px solid #3d3d3d;
+                    border-radius: 15px;
+                    font-size: 16px;
+                    color: #888;
+                }
+                QPushButton:hover {
+                    background-color: #3d3d3d;
+                    color: #ffd700;
+                }
+            )");
+        }
+    } else {
+        // Not favorited - reset to default empty state
+        m_starBtn->setText(QString::fromUtf8("\u2606"));
+        m_starBtn->setStyleSheet(R"(
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #3d3d3d;
+                border-radius: 15px;
+                font-size: 16px;
+                color: #888;
+            }
+            QPushButton:hover {
+                background-color: #3d3d3d;
+                color: #ffd700;
+            }
+            QPushButton:disabled {
+                color: #444;
+                border-color: #2d2d2d;
+            }
+        )");
+        m_heartBtn->setText(QString::fromUtf8("\u2661"));
+        m_heartBtn->setStyleSheet(R"(
+            QPushButton {
+                background-color: transparent;
+                border: 1px solid #3d3d3d;
+                border-radius: 15px;
+                font-size: 16px;
+                color: #888;
+            }
+            QPushButton:hover {
+                background-color: #3d3d3d;
+                color: #ff4444;
+            }
+            QPushButton:disabled {
+                color: #444;
+                border-color: #2d2d2d;
+            }
+        )");
+    }
+}
+
+void PassagePreviewWidget::onToggleStar() {
+    if (m_treatiseCode.isEmpty() || m_passage.isEmpty()) {
+        return;
+    }
+
+    codex::db::FavoriteRepository repo;
+    repo.toggleFavorite(m_treatiseCode, m_passage.left(200), m_startPos, m_endPos,
+                        codex::db::FavoriteType::Star);
+    updateFavoriteButtons();
+    emit favoriteChanged();
+
+    LOG_INFO(QString("Star toggled for passage in %1").arg(m_treatiseCode));
+}
+
+void PassagePreviewWidget::onToggleHeart() {
+    if (m_treatiseCode.isEmpty() || m_passage.isEmpty()) {
+        return;
+    }
+
+    codex::db::FavoriteRepository repo;
+    repo.toggleFavorite(m_treatiseCode, m_passage.left(200), m_startPos, m_endPos,
+                        codex::db::FavoriteType::Heart);
+    updateFavoriteButtons();
+    emit favoriteChanged();
+
+    LOG_INFO(QString("Heart toggled for passage in %1").arg(m_treatiseCode));
 }
 
 void PassagePreviewWidget::onGenerateImage() {

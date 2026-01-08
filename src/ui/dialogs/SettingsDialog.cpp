@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QScrollArea>
 #include <QPushButton>
 #include <QLabel>
 #include <QFileDialog>
@@ -40,6 +41,9 @@ void SettingsDialog::setupUi() {
     m_tabWidget = new QTabWidget(this);
 
     // ========== API Keys Tab ==========
+    auto* apiScrollArea = new QScrollArea();
+    apiScrollArea->setWidgetResizable(true);
+    apiScrollArea->setFrameShape(QFrame::NoFrame);
     auto* apiTab = new QWidget();
     auto* apiLayout = new QVBoxLayout(apiTab);
 
@@ -69,38 +73,105 @@ void SettingsDialog::setupUi() {
     claudeLayout->addWidget(testClaudeBtn);
     apiLayout->addWidget(claudeGroup);
 
-    // Google AI API (Gemini, Imagen, Veo)
-    auto* googleGroup = new QGroupBox("Google AI (Gemini, Imagen 3, Veo 2)", apiTab);
-    auto* googleMainLayout = new QVBoxLayout(googleGroup);
+    // Google AI Studio (for Gemini prompts - free tier)
+    auto* aiStudioGroup = new QGroupBox("AI Studio (Gemini - Prompts)", apiTab);
+    auto* aiStudioMainLayout = new QVBoxLayout(aiStudioGroup);
 
-    auto* googleKeyLayout = new QHBoxLayout();
-    m_googleAiKeyEdit = new QLineEdit(googleGroup);
-    m_googleAiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_googleAiKeyEdit->setPlaceholderText("AIza...");
-    auto* testGoogleBtn = new QPushButton("Tester", googleGroup);
-    connect(testGoogleBtn, &QPushButton::clicked, this, &SettingsDialog::onTestGoogleAI);
-    googleKeyLayout->addWidget(new QLabel("Cle API:"));
-    googleKeyLayout->addWidget(m_googleAiKeyEdit, 1);
-    googleKeyLayout->addWidget(testGoogleBtn);
-    googleMainLayout->addLayout(googleKeyLayout);
+    auto* aiStudioKeyLayout = new QHBoxLayout();
+    m_aiStudioKeyEdit = new QLineEdit(aiStudioGroup);
+    m_aiStudioKeyEdit->setEchoMode(QLineEdit::Password);
+    m_aiStudioKeyEdit->setPlaceholderText("AIza... (cle AI Studio)");
+    auto* testAiStudioBtn = new QPushButton("Tester", aiStudioGroup);
+    connect(testAiStudioBtn, &QPushButton::clicked, this, &SettingsDialog::onTestGoogleAI);
+    aiStudioKeyLayout->addWidget(new QLabel("Cle API:"));
+    aiStudioKeyLayout->addWidget(m_aiStudioKeyEdit, 1);
+    aiStudioKeyLayout->addWidget(testAiStudioBtn);
+    aiStudioMainLayout->addLayout(aiStudioKeyLayout);
 
-    // Google AI Provider selection (AI Studio vs Vertex AI)
-    auto* googleProviderLayout = new QHBoxLayout();
-    m_googleProviderCombo = new QComboBox(googleGroup);
-    m_googleProviderCombo->addItem("AI Studio (generativelanguage.googleapis.com)", "aistudio");
-    m_googleProviderCombo->addItem("Vertex AI (aiplatform.googleapis.com)", "vertex");
-    googleProviderLayout->addWidget(new QLabel("Endpoint:"));
-    googleProviderLayout->addWidget(m_googleProviderCombo, 1);
-    googleMainLayout->addLayout(googleProviderLayout);
-
-    auto* googleInfoLabel = new QLabel(
-        "<i>Meme cle API pour les deux. Vertex AI offre des quotas plus eleves.</i>",
-        googleGroup
+    auto* aiStudioInfoLabel = new QLabel(
+        "<i>Gratuit avec quotas genereux. Pour Gemini 3 Pro (generation de prompts).</i>",
+        aiStudioGroup
     );
-    googleInfoLabel->setStyleSheet("color: #888; font-size: 10px;");
-    googleMainLayout->addWidget(googleInfoLabel);
+    aiStudioInfoLabel->setStyleSheet("color: #81c784; font-size: 10px;");
+    aiStudioMainLayout->addWidget(aiStudioInfoLabel);
 
-    apiLayout->addWidget(googleGroup);
+    apiLayout->addWidget(aiStudioGroup);
+
+    // Vertex AI (for Imagen/Veo - paid)
+    auto* vertexGroup = new QGroupBox("Vertex AI (Imagen, Veo - Images/Videos)", apiTab);
+    auto* vertexMainLayout = new QVBoxLayout(vertexGroup);
+
+    auto* vertexKeyLayout = new QHBoxLayout();
+    m_vertexAiKeyEdit = new QLineEdit(vertexGroup);
+    m_vertexAiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_vertexAiKeyEdit->setPlaceholderText("AIza... (cle Vertex AI/GCP)");
+    auto* testVertexBtn = new QPushButton("Tester", vertexGroup);
+    connect(testVertexBtn, &QPushButton::clicked, this, [this]() {
+        // Test Vertex AI endpoint
+        QString key = m_vertexAiKeyEdit->text();
+        if (key.isEmpty() || key.startsWith("•")) {
+            key = codex::utils::SecureStorage::instance().getApiKey(
+                codex::utils::SecureStorage::SERVICE_IMAGEN
+            );
+        }
+        if (key.isEmpty()) {
+            codex::utils::MessageBox::warning(this, "Test", "Veuillez d'abord entrer une cle API.");
+            return;
+        }
+        setCursor(Qt::WaitCursor);
+        QString testUrl = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key=%1").arg(key);
+        QNetworkAccessManager* netManager = new QNetworkAccessManager(this);
+        QUrl testQUrl(testUrl);
+        QNetworkRequest testReq;
+        testReq.setUrl(testQUrl);
+        testReq.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+        QJsonObject testBody;
+        QJsonArray testContents;
+        QJsonObject testContent;
+        testContent["role"] = "user";
+        QJsonArray testParts;
+        QJsonObject testPart;
+        testPart["text"] = "Hi";
+        testParts.append(testPart);
+        testContent["parts"] = testParts;
+        testContents.append(testContent);
+        testBody["contents"] = testContents;
+        QJsonObject testGenConfig;
+        testGenConfig["maxOutputTokens"] = 10;
+        testBody["generationConfig"] = testGenConfig;
+        QNetworkReply* testReply = netManager->post(testReq, QJsonDocument(testBody).toJson());
+        connect(testReply, &QNetworkReply::finished, this, [this, testReply, netManager]() {
+            setCursor(Qt::ArrowCursor);
+            if (testReply->error() == QNetworkReply::NoError) {
+                codex::utils::MessageBox::info(this, "Test Vertex AI", "Connexion Vertex AI reussie !");
+            } else {
+                QString errorMsg = testReply->errorString();
+                QByteArray responseData = testReply->readAll();
+                if (!responseData.isEmpty()) {
+                    QJsonDocument doc = QJsonDocument::fromJson(responseData);
+                    if (doc.isObject() && doc.object().contains("error")) {
+                        errorMsg = doc.object()["error"].toObject()["message"].toString();
+                    }
+                }
+                codex::utils::MessageBox::warning(this, "Test Vertex AI", QString("Erreur: %1").arg(errorMsg));
+            }
+            testReply->deleteLater();
+            netManager->deleteLater();
+        });
+    });
+    vertexKeyLayout->addWidget(new QLabel("Cle API:"));
+    vertexKeyLayout->addWidget(m_vertexAiKeyEdit, 1);
+    vertexKeyLayout->addWidget(testVertexBtn);
+    vertexMainLayout->addLayout(vertexKeyLayout);
+
+    auto* vertexInfoLabel = new QLabel(
+        "<i>Payant. Pour Imagen (images) et Veo (videos). Quotas entreprise.</i>",
+        vertexGroup
+    );
+    vertexInfoLabel->setStyleSheet("color: #ffb74d; font-size: 10px;");
+    vertexMainLayout->addWidget(vertexInfoLabel);
+
+    apiLayout->addWidget(vertexGroup);
 
     // TTS (Text-to-Speech) Section
     auto* ttsGroup = new QGroupBox("Synthese Vocale (TTS)", apiTab);
@@ -186,7 +257,8 @@ void SettingsDialog::setupUi() {
     apiLayout->addWidget(infoLabel);
 
     apiLayout->addStretch();
-    m_tabWidget->addTab(apiTab, "Clés API");
+    apiScrollArea->setWidget(apiTab);
+    m_tabWidget->addTab(apiScrollArea, "Clés API");
 
     // ========== Paths Tab ==========
     auto* pathsTab = new QWidget();
@@ -244,6 +316,9 @@ void SettingsDialog::setupUi() {
     m_tabWidget->addTab(pathsTab, "Chemins");
 
     // ========== Appearance Tab ==========
+    auto* appearanceScrollArea = new QScrollArea();
+    appearanceScrollArea->setWidgetResizable(true);
+    appearanceScrollArea->setFrameShape(QFrame::NoFrame);
     auto* appearanceTab = new QWidget();
     auto* appearanceLayout = new QVBoxLayout(appearanceTab);
 
@@ -297,8 +372,37 @@ void SettingsDialog::setupUi() {
 
     appearanceLayout->addWidget(textFontGroup);
 
+    // Damier (alternating rows) section
+    auto* damierGroup = new QGroupBox("Damier (Lignes alternees)", appearanceTab);
+    auto* damierLayout = new QFormLayout(damierGroup);
+
+    m_damierEnabledCheck = new QCheckBox("Activer le damier", damierGroup);
+    damierLayout->addRow("", m_damierEnabledCheck);
+
+    auto* contrastLayout = new QHBoxLayout();
+    m_damierContrastSlider = new QSlider(Qt::Horizontal, damierGroup);
+    m_damierContrastSlider->setRange(0, 100);
+    m_damierContrastSlider->setTickPosition(QSlider::TicksBelow);
+    m_damierContrastSlider->setTickInterval(25);
+    m_damierContrastLabel = new QLabel("30%", damierGroup);
+    m_damierContrastLabel->setMinimumWidth(40);
+    contrastLayout->addWidget(m_damierContrastSlider, 1);
+    contrastLayout->addWidget(m_damierContrastLabel);
+    damierLayout->addRow("Contraste:", contrastLayout);
+
+    // Update label when slider changes
+    connect(m_damierContrastSlider, &QSlider::valueChanged, this, [this](int value) {
+        m_damierContrastLabel->setText(QString("%1%").arg(value));
+    });
+
+    // Enable/disable slider based on checkbox
+    connect(m_damierEnabledCheck, &QCheckBox::toggled, m_damierContrastSlider, &QSlider::setEnabled);
+
+    appearanceLayout->addWidget(damierGroup);
+
     appearanceLayout->addStretch();
-    m_tabWidget->addTab(appearanceTab, "Apparence");
+    appearanceScrollArea->setWidget(appearanceTab);
+    m_tabWidget->addTab(appearanceScrollArea, "Apparence");
 
     mainLayout->addWidget(m_tabWidget);
 
@@ -331,9 +435,13 @@ void SettingsDialog::loadSettings() {
         m_claudeKeyEdit->setText("••••••••••••••••");
         m_claudeKeyEdit->setProperty("hasKey", true);
     }
+    if (storage.hasApiKey(storage.SERVICE_AISTUDIO)) {
+        m_aiStudioKeyEdit->setText("••••••••••••••••");
+        m_aiStudioKeyEdit->setProperty("hasKey", true);
+    }
     if (storage.hasApiKey(storage.SERVICE_IMAGEN)) {
-        m_googleAiKeyEdit->setText("••••••••••••••••");
-        m_googleAiKeyEdit->setProperty("hasKey", true);
+        m_vertexAiKeyEdit->setText("••••••••••••••••");
+        m_vertexAiKeyEdit->setProperty("hasKey", true);
     }
     if (storage.hasApiKey(storage.SERVICE_ELEVENLABS)) {
         m_elevenLabsKeyEdit->setText("••••••••••••••••");
@@ -372,13 +480,6 @@ void SettingsDialog::loadSettings() {
         }
     }
 
-    // Load Google AI provider selection (AI Studio vs Vertex)
-    QString googleProvider = config.googleAiProvider();
-    int googleProviderIndex = m_googleProviderCombo->findData(googleProvider);
-    if (googleProviderIndex >= 0) {
-        m_googleProviderCombo->setCurrentIndex(googleProviderIndex);
-    }
-
     // Load paths
     m_codexPathEdit->setText(config.codexFilePath());
     m_outputImagesPathEdit->setText(config.outputImagesPath());
@@ -400,6 +501,13 @@ void SettingsDialog::loadSettings() {
     m_uiFontSizeSpin->setValue(fonts.uiSize);
     m_textFontCombo->setCurrentFont(QFont(fonts.textFamily));
     m_textFontSizeSpin->setValue(fonts.textSize);
+
+    // Load damier settings
+    auto damier = theme.damierSettings();
+    m_damierEnabledCheck->setChecked(damier.enabled);
+    m_damierContrastSlider->setValue(damier.contrast);
+    m_damierContrastSlider->setEnabled(damier.enabled);
+    m_damierContrastLabel->setText(QString("%1%").arg(damier.contrast));
 }
 
 void SettingsDialog::saveSettings() {
@@ -412,9 +520,14 @@ void SettingsDialog::saveSettings() {
         storage.storeApiKey(storage.SERVICE_CLAUDE, claudeKey);
     }
 
-    QString googleKey = m_googleAiKeyEdit->text();
-    if (!googleKey.isEmpty() && !googleKey.startsWith("•")) {
-        storage.storeApiKey(storage.SERVICE_IMAGEN, googleKey);
+    QString aiStudioKey = m_aiStudioKeyEdit->text();
+    if (!aiStudioKey.isEmpty() && !aiStudioKey.startsWith("•")) {
+        storage.storeApiKey(storage.SERVICE_AISTUDIO, aiStudioKey);
+    }
+
+    QString vertexKey = m_vertexAiKeyEdit->text();
+    if (!vertexKey.isEmpty() && !vertexKey.startsWith("•")) {
+        storage.storeApiKey(storage.SERVICE_IMAGEN, vertexKey);
     }
 
     // Save LLM provider selection
@@ -438,10 +551,6 @@ void SettingsDialog::saveSettings() {
     QString selectedVoiceId = m_voiceCombo->currentData().toString();
     config.setElevenLabsVoiceId(selectedVoiceId);
 
-    // Save Google AI provider selection
-    QString googleProvider = m_googleProviderCombo->currentData().toString();
-    config.setGoogleAiProvider(googleProvider);
-
     // Save paths
     config.setCodexFilePath(m_codexPathEdit->text());
     config.setOutputImagesPath(m_outputImagesPathEdit->text());
@@ -458,6 +567,13 @@ void SettingsDialog::saveSettings() {
     fonts.textFamily = m_textFontCombo->currentFont().family();
     fonts.textSize = m_textFontSizeSpin->value();
     theme.setFontSettings(fonts);
+
+    // Save damier settings
+    codex::utils::DamierSettings damier;
+    damier.enabled = m_damierEnabledCheck->isChecked();
+    damier.contrast = m_damierContrastSlider->value();
+    theme.setDamierSettings(damier);
+
     theme.save();
 
     LOG_INFO("Settings saved");
@@ -474,6 +590,12 @@ void SettingsDialog::applyAppearance() {
     fonts.textFamily = m_textFontCombo->currentFont().family();
     fonts.textSize = m_textFontSizeSpin->value();
     theme.setFontSettings(fonts);
+
+    // Apply damier settings
+    codex::utils::DamierSettings damier;
+    damier.enabled = m_damierEnabledCheck->isChecked();
+    damier.contrast = m_damierContrastSlider->value();
+    theme.setDamierSettings(damier);
 
     theme.apply();
 }
@@ -569,28 +691,23 @@ void SettingsDialog::onTestClaude() {
 }
 
 void SettingsDialog::onTestGoogleAI() {
-    QString key = m_googleAiKeyEdit->text();
+    // Test AI Studio key
+    QString key = m_aiStudioKeyEdit->text();
     if (key.isEmpty() || key.startsWith("•")) {
         key = codex::utils::SecureStorage::instance().getApiKey(
-            codex::utils::SecureStorage::SERVICE_IMAGEN
+            codex::utils::SecureStorage::SERVICE_AISTUDIO
         );
     }
 
     if (key.isEmpty()) {
-        codex::utils::MessageBox::warning(this, "Test", "Veuillez d'abord entrer une clé API.");
+        codex::utils::MessageBox::warning(this, "Test", "Veuillez d'abord entrer une cle API AI Studio.");
         return;
     }
 
     setCursor(Qt::WaitCursor);
 
-    // Determine endpoint based on provider selection
-    QString provider = m_googleProviderCombo->currentData().toString();
-    QString url;
-    if (provider == "vertex") {
-        url = QString("https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.0-flash:generateContent?key=%1").arg(key);
-    } else {
-        url = QString("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%1").arg(key);
-    }
+    // AI Studio endpoint
+    QString url = QString("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%1").arg(key);
 
     QNetworkAccessManager manager;
     QUrl reqUrl(url);
@@ -629,15 +746,13 @@ void SettingsDialog::onTestGoogleAI() {
 
     if (reply->isRunning()) {
         reply->abort();
-        codex::utils::MessageBox::warning(this, "Test Google AI", "Timeout - pas de reponse du serveur (30s).");
+        codex::utils::MessageBox::warning(this, "Test AI Studio", "Timeout - pas de reponse du serveur (30s).");
         reply->deleteLater();
         return;
     }
 
     if (reply->error() == QNetworkReply::NoError) {
-        QString endpoint = (provider == "vertex") ? "Vertex AI" : "AI Studio";
-        codex::utils::MessageBox::info(this, "Test Google AI",
-            QString("Connexion reussie !\nEndpoint: %1").arg(endpoint));
+        codex::utils::MessageBox::info(this, "Test AI Studio", "Connexion AI Studio reussie !");
     } else {
         QString errorMsg = reply->errorString();
         QByteArray responseData = reply->readAll();
@@ -647,7 +762,7 @@ void SettingsDialog::onTestGoogleAI() {
                 errorMsg = doc.object()["error"].toObject()["message"].toString();
             }
         }
-        codex::utils::MessageBox::warning(this, "Test Google AI", QString("Erreur: %1").arg(errorMsg));
+        codex::utils::MessageBox::warning(this, "Test AI Studio", QString("Erreur: %1").arg(errorMsg));
     }
     reply->deleteLater();
 }

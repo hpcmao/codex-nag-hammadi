@@ -14,6 +14,11 @@ ImagenClient::ImagenClient(QObject* parent)
     m_baseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
 }
 
+bool ImagenClient::isConfigured() const {
+    // ImagenClient uses API key for both AI Studio and Vertex AI
+    return !m_apiKey.isEmpty();
+}
+
 void ImagenClient::generateImage(const ImageGenerationParams& params) {
     if (!isConfigured()) {
         emit errorOccurred("Imagen API not configured");

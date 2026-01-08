@@ -8,6 +8,7 @@ add_library(codex_ui STATIC
     widgets/PassagePreviewWidget.cpp
     widgets/AudioPlayerWidget.cpp
     widgets/SlideshowWidget.cpp
+    widgets/InfoDockWidget.cpp
     dialogs/SettingsDialog.cpp
     dialogs/ProjectDialog.cpp
 )

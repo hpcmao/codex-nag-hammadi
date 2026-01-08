@@ -66,7 +66,14 @@
       "Bash(cmd.exe:*)",
       "Bash(\"C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe\" \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build/bin/Debug/codex-nag-hammadi.exe\")",
       "Bash(/c/Users/hpcmao/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/cmake.exe --build:*)",
-      "Bash(\"/c/Program Files/CMake/bin/cmake.exe\" --build /c/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build --config Release)"
+      "Bash(\"/c/Program Files/CMake/bin/cmake.exe\" --build /c/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build --config Release)",
+      "Bash(git push)",
+      "Bash(\"/c/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe\" --build . --config Release --target codex-nag-hammadi)",
+      "Bash(\"/c/Program Files/CMake/bin/cmake.exe\" --build . --config Release --target codex-nag-hammadi)",
+      "Bash(start codex-nag-hammadi.exe)",
+      "Bash(start \"\" \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build/bin/Debug/codex-nag-hammadi.exe\")",
+      "Bash(cmd //c:*)",
+      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" --build \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build\" --config Debug)"
     ]
   }
 }

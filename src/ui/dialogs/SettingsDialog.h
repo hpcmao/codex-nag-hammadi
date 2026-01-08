@@ -7,6 +7,9 @@
 #include <QFontComboBox>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QCheckBox>
+#include <QSlider>
+#include <QLabel>
 
 namespace codex::ui {
 
@@ -33,15 +36,13 @@ private:
 
     // API Keys tab
     QLineEdit* m_claudeKeyEdit;
-    QLineEdit* m_googleAiKeyEdit;  // Shared key for Gemini, Imagen, Veo
+    QLineEdit* m_aiStudioKeyEdit;  // AI Studio key for Gemini prompts (free tier)
+    QLineEdit* m_vertexAiKeyEdit;  // Vertex AI key for Imagen/Veo (paid)
     QLineEdit* m_elevenLabsKeyEdit;
     QComboBox* m_voiceCombo;           // ElevenLabs voices
     QComboBox* m_llmProviderCombo;     // Claude vs Gemini
     QComboBox* m_ttsProviderCombo;     // ElevenLabs vs Edge TTS
     QComboBox* m_edgeVoiceCombo;       // Edge TTS voices
-
-    // Google AI endpoint selection
-    QComboBox* m_googleProviderCombo;  // AI Studio vs Vertex AI
 
     // Paths tab
     QLineEdit* m_codexPathEdit;
@@ -56,6 +57,11 @@ private:
     QFontComboBox* m_textFontCombo;
     QSpinBox* m_textFontSizeSpin;
     QString m_currentAccentColor;
+
+    // Damier (alternating rows)
+    QCheckBox* m_damierEnabledCheck;
+    QSlider* m_damierContrastSlider;
+    QLabel* m_damierContrastLabel;
 
     QTabWidget* m_tabWidget;
 };
