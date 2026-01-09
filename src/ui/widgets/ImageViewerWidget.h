@@ -8,6 +8,7 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QVector>
+#include <QDialog>
 
 namespace codex::ui {
 
@@ -31,6 +32,11 @@ public:
     void clearPlate();
     int plateImageCount() const { return m_plateImages.size(); }
 
+    // Progressive plate generation display
+    void startPlateGrid(int cols, int rows);
+    void setPlateGridImage(int index, const QPixmap& image, const QString& text);
+    void finishPlateGrid();
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -43,7 +49,11 @@ signals:
     void imageSaveRequested();
     void plateCreated(const QPixmap& plate);
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private:
+    void showFullSizeImage();
     void setupUi();
     void updateZoomedImage();
 
@@ -66,6 +76,14 @@ private:
 
     void updatePlateStatus();
     QSize parsePlateSize() const;
+    void updateGridDisplay();
+
+    // Grid generation state
+    int m_gridCols = 0;
+    int m_gridRows = 0;
+    QVector<QPixmap> m_gridImages;
+    QVector<QString> m_gridTexts;
+    bool m_gridMode = false;
 
     static constexpr int MIN_ZOOM = 10;
     static constexpr int MAX_ZOOM = 400;

@@ -119,79 +119,14 @@ void PassagePreviewWidget::setupUi() {
     statsLayout->addStretch();
     mainLayout->addLayout(statsLayout);
 
-    // Buttons row
+    // Favorites buttons row (generation buttons moved to menu)
     auto* buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(10);
-
-    m_generateImageBtn = new QPushButton("Generer Image", this);
-    m_generateImageBtn->setEnabled(false);
-    m_generateImageBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #094771;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 3px;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: #0a5a8c;
-        }
-        QPushButton:disabled {
-            background-color: #3d3d3d;
-            color: #666;
-        }
-    )");
-    connect(m_generateImageBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onGenerateImage);
-    buttonLayout->addWidget(m_generateImageBtn);
-
-    m_generateAudioBtn = new QPushButton("Generer Audio", this);
-    m_generateAudioBtn->setEnabled(false);
-    m_generateAudioBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #4a4a4a;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 3px;
-        }
-        QPushButton:hover {
-            background-color: #5a5a5a;
-        }
-        QPushButton:disabled {
-            background-color: #3d3d3d;
-            color: #666;
-        }
-    )");
-    connect(m_generateAudioBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onGenerateAudio);
-    buttonLayout->addWidget(m_generateAudioBtn);
-
-    m_generateVideoBtn = new QPushButton("Generer Video", this);
-    m_generateVideoBtn->setEnabled(false);
-    m_generateVideoBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #6a3d9a;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 3px;
-        }
-        QPushButton:hover {
-            background-color: #7d4db3;
-        }
-        QPushButton:disabled {
-            background-color: #3d3d3d;
-            color: #666;
-        }
-    )");
-    connect(m_generateVideoBtn, &QPushButton::clicked, this, &PassagePreviewWidget::onGenerateVideo);
-    buttonLayout->addWidget(m_generateVideoBtn);
-
     buttonLayout->addStretch();
     mainLayout->addLayout(buttonLayout);
 
-    // Set fixed height for the entire widget
-    setMaximumHeight(250);
+    // Set fixed height for the entire widget (reduced since generation buttons removed)
+    setMaximumHeight(180);
 }
 
 void PassagePreviewWidget::setTreatiseCode(const QString& code) {
@@ -212,11 +147,9 @@ void PassagePreviewWidget::setPassage(const QString& text, int startPos, int end
 
     updateStats();
 
-    // Enable buttons if passage is valid (minimum 20 characters)
+    // Enable favorite buttons if passage is valid (minimum 20 characters)
+    // Generation buttons are now in the menu
     bool valid = text.length() >= 20;
-    m_generateImageBtn->setEnabled(valid);
-    m_generateAudioBtn->setEnabled(valid);
-    m_generateVideoBtn->setEnabled(valid);
     m_starBtn->setEnabled(valid && !m_treatiseCode.isEmpty());
     m_heartBtn->setEnabled(valid && !m_treatiseCode.isEmpty());
 
@@ -237,9 +170,6 @@ void PassagePreviewWidget::clear() {
     m_previewEdit->clear();
     m_statsLabel->setText("0 caracteres | 0 mots");
     m_positionLabel->clear();
-    m_generateImageBtn->setEnabled(false);
-    m_generateAudioBtn->setEnabled(false);
-    m_generateVideoBtn->setEnabled(false);
     m_starBtn->setEnabled(false);
     m_heartBtn->setEnabled(false);
 
@@ -391,24 +321,6 @@ void PassagePreviewWidget::onToggleHeart() {
     emit favoriteChanged();
 
     LOG_INFO(QString("Heart toggled for passage in %1").arg(m_treatiseCode));
-}
-
-void PassagePreviewWidget::onGenerateImage() {
-    if (!m_passage.isEmpty()) {
-        emit generateImageRequested(m_passage);
-    }
-}
-
-void PassagePreviewWidget::onGenerateAudio() {
-    if (!m_passage.isEmpty()) {
-        emit generateAudioRequested(m_passage);
-    }
-}
-
-void PassagePreviewWidget::onGenerateVideo() {
-    if (!m_passage.isEmpty()) {
-        emit generateVideoRequested(m_passage);
-    }
 }
 
 } // namespace codex::ui

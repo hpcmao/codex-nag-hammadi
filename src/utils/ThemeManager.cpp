@@ -30,7 +30,7 @@ ThemeColors ThemeManager::darkTheme() {
     colors.selection = "#264f78";
     colors.border = "#3d3d3d";
     colors.statusBar = "#007acc";
-    colors.scrollHandle = "#5a5a5a";
+    colors.scrollHandle = "#6a6a6a";
     colors.error = "#f44336";
     colors.success = "#4caf50";
     // Alternating rows - subtle contrast for readability
@@ -242,34 +242,52 @@ QString ThemeManager::generateStyleSheet() const {
             border: 1px solid %8;
         }
         QScrollBar:vertical {
-            background-color: %3;
-            width: 12px;
+            background-color: %6;
+            width: 14px;
+            border-left: 1px solid %7;
+            margin: 0px;
         }
         QScrollBar::handle:vertical {
             background-color: %16;
-            border-radius: 6px;
-            min-height: 20px;
+            border-radius: 5px;
+            min-height: 30px;
+            margin: 2px;
         }
         QScrollBar::handle:vertical:hover {
-            background-color: %11;
+            background-color: %8;
+        }
+        QScrollBar::handle:vertical:pressed {
+            background-color: %10;
         }
         QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
             height: 0px;
         }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+            background-color: transparent;
+        }
         QScrollBar:horizontal {
-            background-color: %3;
-            height: 12px;
+            background-color: %6;
+            height: 14px;
+            border-top: 1px solid %7;
+            margin: 0px;
         }
         QScrollBar::handle:horizontal {
             background-color: %16;
-            border-radius: 6px;
-            min-width: 20px;
+            border-radius: 5px;
+            min-width: 30px;
+            margin: 2px;
         }
         QScrollBar::handle:horizontal:hover {
-            background-color: %11;
+            background-color: %8;
+        }
+        QScrollBar::handle:horizontal:pressed {
+            background-color: %10;
         }
         QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
             width: 0px;
+        }
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+            background-color: transparent;
         }
         QTabWidget::pane {
             border: 1px solid %7;

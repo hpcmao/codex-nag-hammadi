@@ -11,6 +11,7 @@ add_library(codex_ui STATIC
     widgets/InfoDockWidget.cpp
     dialogs/SettingsDialog.cpp
     dialogs/ProjectDialog.cpp
+    dialogs/SlideshowDialog.cpp
 )
 
 target_include_directories(codex_ui PUBLIC

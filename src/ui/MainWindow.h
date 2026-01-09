@@ -4,6 +4,9 @@
 #include <QTimer>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QProgressBar>
+#include <QTabWidget>
+#include <QTextEdit>
 #include <memory>
 #include "db/repositories/ProjectRepository.h"
 
@@ -54,6 +57,8 @@ private slots:
     void onGenerateImageFromPreview(const QString& passage);
     void onGenerateAudioFromPreview(const QString& passage);
     void onGenerateVideoFromPreview(const QString& passage);
+    void onGeneratePlateFromPreview(const QString& passage, int cols, int rows);
+    void onPlateSizeChanged(int cols, int rows);
     void onVideoGenerated(const QByteArray& videoData, const QString& prompt);
     void onVideoProgress(int percent);
     void onVideoError(const QString& error);
@@ -70,6 +75,8 @@ private slots:
     void onEdgeAudioError(const QString& error);
 
     void onStartSlideshow();
+    void onGenerateAllAndSlideshow();
+    void onFullGenerationCompleted();
 
 private:
     void setupUi();
@@ -100,10 +107,30 @@ private:
     QString m_currentTreatiseCode;
     QString m_currentCategory;
 
+    // Plate generation state
+    QStringList m_plateTextSegments;
+    int m_plateNextIndex = 0;
+    int m_plateCols = 0;
+    int m_plateRows = 0;
+    bool m_plateGenerating = false;
+
     // Quick settings in toolbar
     QComboBox* m_voiceCombo = nullptr;
     QLineEdit* m_outputFolderEdit = nullptr;
     QLineEdit* m_videoFolderEdit = nullptr;
+
+    // Central tab widget for passages/prompts
+    QTabWidget* m_centerTabWidget = nullptr;
+    QTextEdit* m_promptEdit = nullptr;
+
+    // Progress bar for generation
+    QProgressBar* m_progressBar = nullptr;
+
+    // Full generation state (prompt + image + audio)
+    bool m_fullGenerating = false;
+    int m_fullGenStep = 0;  // 0=prompt, 1=image, 2=audio, 3=done
+    QString m_generatedPrompt;
+    QString m_lastAudioPath;
 
     void updateWindowTitle();
     void onVoiceChanged(int index);
@@ -116,6 +143,9 @@ private:
     void setProjectModified(bool modified);
     void loadProject(const codex::db::Project& project);
     void showRecentProjectsOnStartup();
+
+    void generateNextPlateImage();
+    QStringList splitTextForPlate(const QString& text, int count);
 };
 
 } // namespace codex::ui

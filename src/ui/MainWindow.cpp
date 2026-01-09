@@ -8,6 +8,7 @@
 #include "widgets/InfoDockWidget.h"
 #include "dialogs/SettingsDialog.h"
 #include "dialogs/ProjectDialog.h"
+#include "dialogs/SlideshowDialog.h"
 #include "db/repositories/PassageRepository.h"
 #include "db/repositories/ImageRepository.h"
 #include "db/repositories/AudioRepository.h"
@@ -124,22 +125,63 @@ void MainWindow::setupUi() {
     m_treatiseList->setMaximumWidth(400);
     mainSplitter->addWidget(m_treatiseList);
 
-    // Right splitter for text/preview and image
+    // Right splitter for text and image/audio
     auto* rightSplitter = new QSplitter(Qt::Horizontal, this);
 
-    // Center vertical splitter for text viewer + passage preview
+    // Center vertical splitter for text viewer + tabs
     auto* centerSplitter = new QSplitter(Qt::Vertical, this);
 
     // Text viewer (top center)
     m_textViewer = new TextViewerWidget(this);
     centerSplitter->addWidget(m_textViewer);
 
-    // Passage preview (bottom center)
-    m_passagePreview = new PassagePreviewWidget(this);
-    centerSplitter->addWidget(m_passagePreview);
+    // Tab widget for passage and prompt (middle center)
+    m_centerTabWidget = new QTabWidget(this);
+    m_centerTabWidget->setStyleSheet(R"(
+        QTabWidget::pane {
+            border: 1px solid #3d3d3d;
+            background-color: #252525;
+        }
+        QTabBar::tab {
+            background-color: #2d2d2d;
+            color: #888;
+            padding: 8px 16px;
+            border: 1px solid #3d3d3d;
+            border-bottom: none;
+        }
+        QTabBar::tab:selected {
+            background-color: #094771;
+            color: #fff;
+        }
+        QTabBar::tab:hover:!selected {
+            background-color: #3d3d3d;
+        }
+    )");
 
-    // Set center splitter sizes (text takes most space)
-    centerSplitter->setSizes({500, 150});
+    // Passage preview tab
+    m_passagePreview = new PassagePreviewWidget(this);
+    m_centerTabWidget->addTab(m_passagePreview, "Passage");
+
+    // Prompt tab
+    m_promptEdit = new QTextEdit(this);
+    m_promptEdit->setReadOnly(true);
+    m_promptEdit->setPlaceholderText("Le prompt genere apparaitra ici...");
+    m_promptEdit->setStyleSheet(R"(
+        QTextEdit {
+            background-color: #252525;
+            color: #d4d4d4;
+            border: none;
+            padding: 10px;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+        }
+    )");
+    m_centerTabWidget->addTab(m_promptEdit, "Prompt");
+
+    centerSplitter->addWidget(m_centerTabWidget);
+
+    // Set center splitter sizes (text takes most space, tabs smaller)
+    centerSplitter->setSizes({450, 200});
 
     rightSplitter->addWidget(centerSplitter);
 
@@ -254,8 +296,32 @@ void MainWindow::setupUi() {
     connect(openVideosBtn, &QPushButton::clicked, this, &MainWindow::onOpenVideosFolder);
     settingsToolbar->addWidget(openVideosBtn);
 
+    // Progress bar in status bar
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setMinimum(0);
+    m_progressBar->setMaximum(100);
+    m_progressBar->setValue(0);
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setFixedWidth(200);
+    m_progressBar->setFixedHeight(18);
+    m_progressBar->hide();  // Hidden by default
+    m_progressBar->setStyleSheet(R"(
+        QProgressBar {
+            border: 1px solid #3d3d3d;
+            border-radius: 3px;
+            background-color: #2d2d2d;
+            text-align: center;
+            color: #fff;
+        }
+        QProgressBar::chunk {
+            background-color: #094771;
+            border-radius: 2px;
+        }
+    )");
+    statusBar()->addPermanentWidget(m_progressBar);
+
     // Status bar
-    statusBar()->showMessage("Prêt");
+    statusBar()->showMessage("Pret");
 }
 
 void MainWindow::setupMenus() {
@@ -325,6 +391,77 @@ void MainWindow::setupMenus() {
 
     auto* aboutAction = helpMenu->addAction("À &propos...");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onShowAbout);
+
+    // Generation menu (after Help)
+    auto* genMenu = menuBar()->addMenu("&Génération");
+
+    auto* genImageAction = genMenu->addAction("Générer &Image");
+    genImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
+    connect(genImageAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateImageFromPreview(m_selectedPassage);
+        }
+    });
+
+    auto* genAudioAction = genMenu->addAction("Générer &Audio");
+    genAudioAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
+    connect(genAudioAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateAudioFromPreview(m_selectedPassage);
+        }
+    });
+
+    auto* genVideoAction = genMenu->addAction("Générer &Vidéo");
+    genVideoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
+    connect(genVideoAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateVideoFromPreview(m_selectedPassage);
+        }
+    });
+
+    genMenu->addSeparator();
+
+    auto* genAllAction = genMenu->addAction("Générer &Tout + Diaporama");
+    genAllAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
+    connect(genAllAction, &QAction::triggered, this, &MainWindow::onGenerateAllAndSlideshow);
+
+    // Planche menu (separate top-level menu)
+    auto* plateMenu = menuBar()->addMenu("&Planche");
+
+    auto* plate2x2 = plateMenu->addAction("2x2 (4 images)");
+    connect(plate2x2, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 2, 2);
+    });
+
+    auto* plate3x2 = plateMenu->addAction("3x2 (6 images)");
+    connect(plate3x2, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 3, 2);
+    });
+
+    auto* plate3x3 = plateMenu->addAction("3x3 (9 images)");
+    connect(plate3x3, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 3, 3);
+    });
+
+    auto* plate3x4 = plateMenu->addAction("3x4 (12 images)");
+    connect(plate3x4, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 3, 4);
+    });
+
+    auto* plate4x4 = plateMenu->addAction("4x4 (16 images)");
+    connect(plate4x4, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 4, 4);
+    });
+
+    auto* plate4x5 = plateMenu->addAction("4x5 (20 images)");
+    connect(plate4x5, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 4, 5);
+    });
+
+    auto* plate5x6 = plateMenu->addAction("5x6 (30 images)");
+    connect(plate5x6, &QAction::triggered, this, [this]() {
+        onGeneratePlateFromPreview(m_selectedPassage, 5, 6);
+    });
 }
 
 void MainWindow::setupConnections() {
@@ -337,14 +474,7 @@ void MainWindow::setupConnections() {
     connect(m_treatiseList, &TreatiseListWidget::treatiseDoubleClicked,
             this, &MainWindow::onTreatiseDoubleClicked);
 
-    connect(m_passagePreview, &PassagePreviewWidget::generateImageRequested,
-            this, &MainWindow::onGenerateImageFromPreview);
-
-    connect(m_passagePreview, &PassagePreviewWidget::generateAudioRequested,
-            this, &MainWindow::onGenerateAudioFromPreview);
-
-    connect(m_passagePreview, &PassagePreviewWidget::generateVideoRequested,
-            this, &MainWindow::onGenerateVideoFromPreview);
+    // Generation is now handled via the Generation menu
 
     // Veo (video generation) signals
     connect(m_veoClient, &codex::api::VeoClient::videoGenerated,
@@ -592,11 +722,15 @@ void MainWindow::onGenerateAudioFromPreview(const QString& passage) {
 void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
     if (audioData.isEmpty()) {
         codex::utils::MessageBox::warning(this, "Erreur", "Les donnees audio recues sont vides.");
+
+        if (m_fullGenerating) {
+            m_progressBar->setValue(100);
+            onFullGenerationCompleted();
+        }
         return;
     }
 
     m_audioPlayer->loadFromData(audioData);
-    m_audioPlayer->play();
 
     int seconds = durationMs / 1000;
     statusBar()->showMessage(QString("Audio genere avec succes! Duree: %1:%2")
@@ -604,24 +738,43 @@ void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
                              .arg(seconds % 60, 2, 10, QChar('0')));
     LOG_INFO(QString("Audio generated successfully, size: %1 bytes, duration: %2 ms")
              .arg(audioData.size()).arg(durationMs));
+
+    if (m_fullGenerating) {
+        m_progressBar->setValue(100);
+        m_progressBar->setFormat("Termine!");
+        onFullGenerationCompleted();
+    } else {
+        m_audioPlayer->play();
+    }
 }
 
 void MainWindow::onAudioError(const QString& error) {
     statusBar()->showMessage(QString("Erreur audio: %1").arg(error));
     codex::utils::MessageBox::critical(this, "Erreur de generation audio", error);
     LOG_ERROR(QString("Audio generation failed: %1").arg(error));
+
+    if (m_fullGenerating) {
+        // Still launch slideshow even without audio
+        m_progressBar->setValue(100);
+        onFullGenerationCompleted();
+    }
 }
 
 void MainWindow::onEdgeAudioGenerated(const QByteArray& audioData, int durationMs) {
     if (audioData.isEmpty()) {
         statusBar()->showMessage("Erreur: donnees audio vides");
         LOG_ERROR("Edge TTS returned empty audio data");
+
+        if (m_fullGenerating) {
+            // Still launch slideshow even without audio
+            m_progressBar->setValue(100);
+            onFullGenerationCompleted();
+        }
         return;
     }
 
     // Load and play the MP3 audio data
     m_audioPlayer->loadFromData(audioData);
-    m_audioPlayer->play();
 
     int seconds = durationMs / 1000;
     statusBar()->showMessage(QString("Audio genere! Duree: %1:%2 | Taille: %3 KB")
@@ -630,12 +783,27 @@ void MainWindow::onEdgeAudioGenerated(const QByteArray& audioData, int durationM
                              .arg(audioData.size() / 1024));
     LOG_INFO(QString("Edge TTS audio generated, size: %1 bytes, duration: %2 ms")
              .arg(audioData.size()).arg(durationMs));
+
+    // Check if we're in full generation mode
+    if (m_fullGenerating) {
+        m_progressBar->setValue(100);
+        m_progressBar->setFormat("Termine!");
+        onFullGenerationCompleted();
+    } else {
+        m_audioPlayer->play();
+    }
 }
 
 void MainWindow::onEdgeAudioError(const QString& error) {
     statusBar()->showMessage(QString("Erreur Edge TTS: %1").arg(error));
     codex::utils::MessageBox::critical(this, "Erreur Edge TTS", error);
     LOG_ERROR(QString("Edge TTS generation failed: %1").arg(error));
+
+    if (m_fullGenerating) {
+        // Still launch slideshow even without audio
+        m_progressBar->setValue(100);
+        onFullGenerationCompleted();
+    }
 }
 
 void MainWindow::onGenerateVideoFromPreview(const QString& passage) {
@@ -727,26 +895,88 @@ void MainWindow::onPipelineStateChanged(codex::core::PipelineState state, const 
 
 void MainWindow::onPipelineProgress(int percent, const QString& step) {
     statusBar()->showMessage(QString("%1 (%2%)").arg(step).arg(percent));
+
+    // Update progress bar if in full generation mode
+    if (m_fullGenerating) {
+        // Steps: 0-33% = prompt, 33-66% = image, 66-100% = audio
+        if (step.contains("prompt", Qt::CaseInsensitive)) {
+            m_progressBar->setValue(percent / 3);
+            m_progressBar->setFormat(QString("Etape 1/3: Prompt... %1%").arg(percent));
+        } else if (step.contains("image", Qt::CaseInsensitive) || step.contains("Imagen", Qt::CaseInsensitive)) {
+            m_progressBar->setValue(33 + percent / 3);
+            m_progressBar->setFormat(QString("Etape 2/3: Image... %1%").arg(percent));
+        }
+    }
 }
 
 void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt) {
-    m_imageViewer->setImage(image);
-    statusBar()->showMessage("Image generee avec succes!");
+    // Store the prompt and display it in the prompt tab
+    if (!prompt.isEmpty()) {
+        m_generatedPrompt = prompt;
+        m_promptEdit->setPlainText(prompt);
+        m_centerTabWidget->setCurrentIndex(1);  // Switch to Prompt tab
+    }
 
-    LOG_INFO(QString("Pipeline completed, image size: %1x%2")
-             .arg(image.width()).arg(image.height()));
+    if (m_plateGenerating && m_plateNextIndex < m_plateTextSegments.size()) {
+        // We're in plate generation mode - add image to grid
+        QString segmentText = m_plateTextSegments[m_plateNextIndex];
+        m_imageViewer->setPlateGridImage(m_plateNextIndex, image, segmentText);
 
-    // Optional: show the prompt used
-    Q_UNUSED(prompt)
+        LOG_INFO(QString("Plate image %1 completed, size: %2x%3")
+                 .arg(m_plateNextIndex + 1).arg(image.width()).arg(image.height()));
+
+        // Move to next image
+        m_plateNextIndex++;
+
+        // Generate next image after a small delay to avoid overwhelming the API
+        QTimer::singleShot(500, this, &MainWindow::generateNextPlateImage);
+    } else if (m_fullGenerating) {
+        // Full generation mode - image done, now generate audio
+        m_imageViewer->setImage(image);
+        m_fullGenStep = 2;
+
+        m_progressBar->setValue(66);
+        m_progressBar->setFormat("Etape 3/3: Generation de l'audio...");
+        statusBar()->showMessage("Generation complete: creation de l'audio...");
+
+        LOG_INFO(QString("Full generation: image completed, starting audio. Size: %1x%2")
+                 .arg(image.width()).arg(image.height()));
+
+        // Generate audio
+        onGenerateAudioFromPreview(m_selectedPassage);
+    } else {
+        // Normal single image generation
+        m_imageViewer->setImage(image);
+        statusBar()->showMessage("Image generee avec succes!");
+
+        LOG_INFO(QString("Pipeline completed, image size: %1x%2")
+                 .arg(image.width()).arg(image.height()));
+    }
 }
 
 void MainWindow::onPipelineFailed(const QString& error) {
-    m_imageViewer->showPlaceholder();
-    statusBar()->showMessage(QString("Erreur: %1").arg(error));
-
-    codex::utils::MessageBox::critical(this, "Erreur de generation", error);
-
     LOG_ERROR(QString("Pipeline failed: %1").arg(error));
+
+    if (m_plateGenerating && m_plateNextIndex < m_plateTextSegments.size()) {
+        // In plate mode - skip this image and continue
+        statusBar()->showMessage(QString("Image %1 echouee, passage a la suivante...")
+                                 .arg(m_plateNextIndex + 1));
+
+        m_plateNextIndex++;
+        QTimer::singleShot(500, this, &MainWindow::generateNextPlateImage);
+    } else if (m_fullGenerating) {
+        // Full generation mode - cancel
+        m_fullGenerating = false;
+        m_progressBar->hide();
+        m_imageViewer->showPlaceholder();
+        statusBar()->showMessage(QString("Erreur: %1").arg(error));
+        codex::utils::MessageBox::critical(this, "Erreur de generation", error);
+    } else {
+        // Normal mode - show error
+        m_imageViewer->showPlaceholder();
+        statusBar()->showMessage(QString("Erreur: %1").arg(error));
+        codex::utils::MessageBox::critical(this, "Erreur de generation", error);
+    }
 }
 
 void MainWindow::onSaveImage() {
@@ -780,38 +1010,70 @@ void MainWindow::onSaveImage() {
 }
 
 void MainWindow::onStartSlideshow() {
-    // Check if we have any image to show
-    if (!m_imageViewer->hasImage()) {
+    // Check if we have selected text
+    if (m_selectedPassage.isEmpty()) {
         codex::utils::MessageBox::info(this, "Diaporama",
-            "Generez au moins une image avant de lancer le diaporama.\n\n"
-            "Le diaporama affichera les images generees avec la narration audio synchronisee.");
+            "Selectionnez un passage de texte avant de lancer le diaporama.\n\n"
+            "Le diaporama generera automatiquement les images et l'audio pour le texte selectionne.");
         return;
     }
 
-    // Create slideshow widget if needed
-    if (!m_slideshowWidget) {
-        m_slideshowWidget = new SlideshowWidget(nullptr);
-        m_slideshowWidget->setAttribute(Qt::WA_DeleteOnClose, false);
+    // Create and show the slideshow dialog
+    SlideshowDialog* dialog = new SlideshowDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // Set the content with selected text and current treatise info
+    dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, 2, 2);
+
+    dialog->show();
+
+    statusBar()->showMessage("Diaporama ouvert");
+    LOG_INFO("Slideshow dialog opened");
+}
+
+void MainWindow::onGenerateAllAndSlideshow() {
+    if (m_selectedPassage.isEmpty()) {
+        codex::utils::MessageBox::info(this, "Generation complete",
+            "Selectionnez un passage de texte avant de lancer la generation complete.");
+        return;
     }
 
-    // Clear previous slides
-    m_slideshowWidget->clear();
+    if (m_fullGenerating) {
+        codex::utils::MessageBox::warning(this, "Generation en cours",
+            "Une generation est deja en cours. Veuillez patienter.");
+        return;
+    }
 
-    // Add current image as a slide (for demo purposes)
-    // In full implementation, this would load from the database
-    SlideData slide;
-    slide.image = m_imageViewer->currentImage();
-    slide.passageText = m_selectedPassage;
-    slide.audioDurationMs = 5000;  // 5 seconds default
+    // Start full generation pipeline: prompt -> image -> audio -> slideshow
+    m_fullGenerating = true;
+    m_fullGenStep = 0;
+    m_generatedPrompt.clear();
+    m_lastAudioPath.clear();
 
-    m_slideshowWidget->addSlide(slide);
+    // Show progress bar
+    m_progressBar->show();
+    m_progressBar->setValue(0);
+    m_progressBar->setFormat("Etape 1/3: Generation du prompt...");
 
-    // Show slideshow
-    m_slideshowWidget->showFullScreen();
-    m_slideshowWidget->start();
+    statusBar()->showMessage("Generation complete: creation du prompt...");
+    LOG_INFO("Starting full generation pipeline");
 
-    statusBar()->showMessage("Diaporama lance (Echap pour quitter)");
-    LOG_INFO("Slideshow started");
+    // Step 1: Generate prompt (this triggers the pipeline which generates prompt then image)
+    m_imageViewer->showLoading();
+    m_pipelineController->startGeneration(m_selectedPassage, m_currentTreatiseCode, m_currentCategory);
+}
+
+void MainWindow::onFullGenerationCompleted() {
+    if (!m_fullGenerating) return;
+
+    m_fullGenerating = false;
+    m_progressBar->hide();
+
+    statusBar()->showMessage("Generation complete terminee! Lancement du diaporama...");
+    LOG_INFO("Full generation completed, launching slideshow");
+
+    // Launch slideshow
+    QTimer::singleShot(500, this, &MainWindow::onStartSlideshow);
 }
 
 void MainWindow::onNewProject() {
@@ -1017,6 +1279,149 @@ void MainWindow::onOpenAudioFolder() {
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     LOG_INFO(QString("Opening audio folder: %1").arg(path));
+}
+
+void MainWindow::onPlateSizeChanged(int cols, int rows) {
+    // Show empty grid immediately when plate size is selected
+    if (!m_imageViewer) return;  // Safety check
+
+    m_plateCols = cols;
+    m_plateRows = rows;
+    m_imageViewer->startPlateGrid(cols, rows);
+
+    statusBar()->showMessage(QString("Planche %1x%2 prete - Selectionnez un passage et cliquez 'Generer Planche'")
+                             .arg(cols).arg(rows));
+
+    LOG_INFO(QString("Plate grid preview: %1x%2").arg(cols).arg(rows));
+}
+
+void MainWindow::onGeneratePlateFromPreview(const QString& passage, int cols, int rows) {
+    if (passage.isEmpty()) {
+        codex::utils::MessageBox::warning(this, "Erreur",
+            "Aucun passage selectionne pour la generation de planche.");
+        return;
+    }
+
+    if (m_pipelineController->isRunning()) {
+        codex::utils::MessageBox::warning(this, "Generation en cours",
+            "Une generation est deja en cours. Veuillez patienter.");
+        return;
+    }
+
+    int totalImages = cols * rows;
+    m_plateCols = cols;
+    m_plateRows = rows;
+    m_plateTextSegments = splitTextForPlate(passage, totalImages);
+    m_plateNextIndex = 0;
+    m_plateGenerating = true;
+
+    // Start the grid display
+    m_imageViewer->startPlateGrid(cols, rows);
+
+    statusBar()->showMessage(QString("Generation de planche %1x%2 : demarrage...")
+                             .arg(cols).arg(rows));
+
+    LOG_INFO(QString("Starting plate generation: %1x%2, %3 segments")
+             .arg(cols).arg(rows).arg(m_plateTextSegments.size()));
+
+    // Start generating first image
+    generateNextPlateImage();
+}
+
+QStringList MainWindow::splitTextForPlate(const QString& text, int count) {
+    QStringList segments;
+    if (text.isEmpty() || count <= 0) return segments;
+
+    // Split by sentences first
+    QStringList sentences;
+    QString current;
+    for (int i = 0; i < text.length(); ++i) {
+        current += text[i];
+        if (text[i] == '.' || text[i] == '!' || text[i] == '?') {
+            // Check if it's end of sentence (not abbreviation)
+            if (i + 1 >= text.length() || text[i + 1] == ' ' || text[i + 1] == '\n') {
+                sentences.append(current.trimmed());
+                current.clear();
+            }
+        }
+    }
+    if (!current.trimmed().isEmpty()) {
+        sentences.append(current.trimmed());
+    }
+
+    // If we have enough sentences, distribute them
+    if (sentences.size() >= count) {
+        int perSegment = sentences.size() / count;
+        int remainder = sentences.size() % count;
+
+        int idx = 0;
+        for (int i = 0; i < count; ++i) {
+            QString segment;
+            int sentenceCount = perSegment + (i < remainder ? 1 : 0);
+            for (int j = 0; j < sentenceCount && idx < sentences.size(); ++j, ++idx) {
+                if (!segment.isEmpty()) segment += " ";
+                segment += sentences[idx];
+            }
+            segments.append(segment);
+        }
+    } else {
+        // Not enough sentences - split text into equal parts
+        int charsPerSegment = text.length() / count;
+        for (int i = 0; i < count; ++i) {
+            int start = i * charsPerSegment;
+            int len = (i == count - 1) ? -1 : charsPerSegment;
+
+            QString segment = text.mid(start, len).trimmed();
+
+            // Try to end at word boundary
+            if (len > 0 && start + len < text.length()) {
+                int lastSpace = segment.lastIndexOf(' ');
+                if (lastSpace > segment.length() * 0.7) {
+                    segment = segment.left(lastSpace).trimmed();
+                }
+            }
+
+            if (!segment.isEmpty()) {
+                segments.append(segment);
+            }
+        }
+    }
+
+    // Ensure we have exactly 'count' segments
+    while (segments.size() < count) {
+        // Duplicate last segment if needed
+        segments.append(segments.isEmpty() ? text.left(100) : segments.last());
+    }
+    while (segments.size() > count) {
+        segments.removeLast();
+    }
+
+    return segments;
+}
+
+void MainWindow::generateNextPlateImage() {
+    if (!m_plateGenerating || m_plateNextIndex >= m_plateTextSegments.size()) {
+        // All done
+        m_plateGenerating = false;
+        m_imageViewer->finishPlateGrid();
+        statusBar()->showMessage(QString("Planche %1x%2 terminee!")
+                                 .arg(m_plateCols).arg(m_plateRows));
+        LOG_INFO("Plate generation completed");
+        return;
+    }
+
+    QString segment = m_plateTextSegments[m_plateNextIndex];
+    statusBar()->showMessage(QString("Generation planche: image %1/%2...")
+                             .arg(m_plateNextIndex + 1)
+                             .arg(m_plateTextSegments.size()));
+
+    LOG_INFO(QString("Generating plate image %1/%2: %3 chars")
+             .arg(m_plateNextIndex + 1)
+             .arg(m_plateTextSegments.size())
+             .arg(segment.length()));
+
+    // Start generation for this segment
+    m_pipelineController->startGeneration(segment, m_currentTreatiseCode, m_currentCategory);
 }
 
 } // namespace codex::ui

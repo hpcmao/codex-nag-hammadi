@@ -63,9 +63,9 @@ bool Config::load() {
             }},
             {"paths", QJsonObject{
                 {"codex_file", ""},
-                {"output_images", "./output/images"},
-                {"output_audio", "./output/audio"},
-                {"output_videos", "./output/videos"}
+                {"output_images", "./images"},
+                {"output_audio", "./images"},
+                {"output_videos", "./videos"}
             }},
             {"appearance", QJsonObject{
                 {"theme", "dark"},

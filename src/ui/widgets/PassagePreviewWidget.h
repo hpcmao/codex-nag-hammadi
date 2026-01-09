@@ -4,6 +4,7 @@
 #include <QTextEdit>
 #include <QLabel>
 #include <QPushButton>
+#include <QComboBox>
 
 namespace codex::ui {
 
@@ -27,15 +28,9 @@ public:
     bool hasPassage() const { return !m_passage.isEmpty(); }
 
 signals:
-    void generateImageRequested(const QString& passage);
-    void generateAudioRequested(const QString& passage);
-    void generateVideoRequested(const QString& passage);
     void favoriteChanged();
 
 private slots:
-    void onGenerateImage();
-    void onGenerateAudio();
-    void onGenerateVideo();
     void onToggleStar();
     void onToggleHeart();
 
@@ -47,9 +42,6 @@ private:
     QTextEdit* m_previewEdit;
     QLabel* m_statsLabel;
     QLabel* m_positionLabel;
-    QPushButton* m_generateImageBtn;
-    QPushButton* m_generateAudioBtn;
-    QPushButton* m_generateVideoBtn;
     QPushButton* m_starBtn;
     QPushButton* m_heartBtn;
 

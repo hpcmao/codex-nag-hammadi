@@ -5,8 +5,12 @@
 #include <QHBoxLayout>
 #include <QToolBar>
 #include <QWheelEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QGroupBox>
+#include <QDialog>
+#include <QScreen>
+#include <QGuiApplication>
 
 namespace codex::ui {
 
@@ -44,6 +48,7 @@ void ImageViewerWidget::setupUi() {
     m_imageLabel->setAlignment(Qt::AlignCenter);
     m_imageLabel->setMinimumSize(200, 150);
     m_imageLabel->setStyleSheet("background-color: transparent;");
+    m_imageLabel->installEventFilter(this);  // For double-click
     m_scrollArea->setWidget(m_imageLabel);
 
     mainLayout->addWidget(m_scrollArea, 1);
@@ -137,81 +142,6 @@ void ImageViewerWidget::setupUi() {
 
     mainLayout->addLayout(controlsLayout);
 
-    // Plate (grid) controls row
-    auto* plateLayout = new QHBoxLayout();
-    plateLayout->setSpacing(5);
-
-    auto* plateLabel = new QLabel("Planche:", this);
-    plateLabel->setStyleSheet("color: #d4d4d4;");
-    plateLayout->addWidget(plateLabel);
-
-    m_plateSizeCombo = new QComboBox(this);
-    m_plateSizeCombo->addItem("2x2 (4 images)", "2x2");
-    m_plateSizeCombo->addItem("3x2 (6 images)", "3x2");
-    m_plateSizeCombo->addItem("3x3 (9 images)", "3x3");
-    m_plateSizeCombo->addItem("3x4 (12 images)", "3x4");
-    m_plateSizeCombo->addItem("4x4 (16 images)", "4x4");
-    m_plateSizeCombo->addItem("4x5 (20 images)", "4x5");
-    m_plateSizeCombo->addItem("5x6 (30 images)", "5x6");
-    m_plateSizeCombo->setMinimumWidth(120);
-    plateLayout->addWidget(m_plateSizeCombo);
-
-    m_addToPlateBtn = new QPushButton("+ Ajouter", this);
-    m_addToPlateBtn->setEnabled(false);
-    m_addToPlateBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #2d5a27;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 5px 10px;
-        }
-        QPushButton:hover { background-color: #3d7a37; }
-        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
-    )");
-    connect(m_addToPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::addToPlate);
-    plateLayout->addWidget(m_addToPlateBtn);
-
-    m_createPlateBtn = new QPushButton("Creer Planche", this);
-    m_createPlateBtn->setEnabled(false);
-    m_createPlateBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #6a3d9a;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 5px 10px;
-        }
-        QPushButton:hover { background-color: #8a5dba; }
-        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
-    )");
-    connect(m_createPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::createPlate);
-    plateLayout->addWidget(m_createPlateBtn);
-
-    m_clearPlateBtn = new QPushButton("Vider", this);
-    m_clearPlateBtn->setEnabled(false);
-    m_clearPlateBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #8b0000;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            padding: 5px 10px;
-        }
-        QPushButton:hover { background-color: #a52a2a; }
-        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
-    )");
-    connect(m_clearPlateBtn, &QPushButton::clicked, this, &ImageViewerWidget::clearPlate);
-    plateLayout->addWidget(m_clearPlateBtn);
-
-    plateLayout->addStretch();
-
-    m_plateStatusLabel = new QLabel("0 images", this);
-    m_plateStatusLabel->setStyleSheet("color: #888;");
-    plateLayout->addWidget(m_plateStatusLabel);
-
-    mainLayout->addLayout(plateLayout);
-
     // Status label
     m_statusLabel = new QLabel(this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
@@ -227,7 +157,6 @@ void ImageViewerWidget::setImage(const QPixmap& pixmap) {
     updateZoomedImage();
 
     m_saveBtn->setEnabled(true);
-    m_addToPlateBtn->setEnabled(true);
     m_statusLabel->setText(QString("Image: %1 x %2 | Zoom: %3%")
                            .arg(pixmap.width())
                            .arg(pixmap.height())
@@ -259,7 +188,6 @@ void ImageViewerWidget::showPlaceholder() {
         "</div>"
     );
     m_saveBtn->setEnabled(false);
-    m_addToPlateBtn->setEnabled(false);
     m_statusLabel->setText("En attente de generation");
 }
 
@@ -267,7 +195,6 @@ void ImageViewerWidget::clear() {
     m_originalPixmap = QPixmap();
     m_imageLabel->clear();
     m_saveBtn->setEnabled(false);
-    m_addToPlateBtn->setEnabled(false);
     m_statusLabel->clear();
 }
 
@@ -404,23 +331,248 @@ void ImageViewerWidget::clearPlate() {
 }
 
 void ImageViewerWidget::updatePlateStatus() {
-    int count = m_plateImages.size();
-    QSize gridSize = parsePlateSize();
-    int needed = gridSize.width() * gridSize.height();
-
-    m_plateStatusLabel->setText(QString("%1/%2 images").arg(count).arg(needed));
-
-    m_createPlateBtn->setEnabled(count > 0);
-    m_clearPlateBtn->setEnabled(count > 0);
+    // No longer used - plate controls removed
 }
 
 QSize ImageViewerWidget::parsePlateSize() const {
-    QString size = m_plateSizeCombo->currentData().toString();
-    QStringList parts = size.split('x');
-    if (parts.size() == 2) {
-        return QSize(parts[0].toInt(), parts[1].toInt());
+    // Return current grid size since combo was removed
+    if (m_gridCols > 0 && m_gridRows > 0) {
+        return QSize(m_gridCols, m_gridRows);
     }
     return QSize(2, 2);
+}
+
+void ImageViewerWidget::startPlateGrid(int cols, int rows) {
+    m_gridCols = cols;
+    m_gridRows = rows;
+    m_gridMode = true;
+    m_gridImages.clear();
+    m_gridTexts.clear();
+
+    int total = cols * rows;
+    m_gridImages.resize(total);
+    m_gridTexts.resize(total);
+
+    m_saveBtn->setEnabled(false);
+
+    m_statusLabel->setText(QString("Planche %1x%2 : selectionnez un passage et cliquez Generer")
+                           .arg(cols).arg(rows));
+
+    // Show initial empty grid
+    updateGridDisplay();
+
+    LOG_INFO(QString("Started plate grid generation: %1x%2").arg(cols).arg(rows));
+}
+
+void ImageViewerWidget::setPlateGridImage(int index, const QPixmap& image, const QString& text) {
+    if (index < 0 || index >= m_gridImages.size()) return;
+
+    m_gridImages[index] = image;
+    m_gridTexts[index] = text;
+
+    // Count completed images
+    int completed = 0;
+    for (const QPixmap& img : m_gridImages) {
+        if (!img.isNull()) completed++;
+    }
+
+    m_statusLabel->setText(QString("Generation de planche %1x%2 : %3/%4 images")
+                           .arg(m_gridCols).arg(m_gridRows)
+                           .arg(completed).arg(m_gridImages.size()));
+
+    updateGridDisplay();
+
+    LOG_INFO(QString("Plate grid image %1 set").arg(index));
+}
+
+void ImageViewerWidget::finishPlateGrid() {
+    m_gridMode = false;
+
+    // Count completed images
+    int completed = 0;
+    for (const QPixmap& img : m_gridImages) {
+        if (!img.isNull()) completed++;
+    }
+
+    m_statusLabel->setText(QString("Planche %1x%2 terminee : %3 images")
+                           .arg(m_gridCols).arg(m_gridRows).arg(completed));
+
+    m_saveBtn->setEnabled(true);
+
+    // Copy grid images to plate collection for potential re-use
+    m_plateImages = m_gridImages;
+    updatePlateStatus();
+
+    LOG_INFO(QString("Plate grid finished: %1 images").arg(completed));
+}
+
+void ImageViewerWidget::updateGridDisplay() {
+    if (m_gridCols <= 0 || m_gridRows <= 0) return;
+
+    // Determine cell size (use standard dimensions)
+    int cellWidth = 512;
+    int cellHeight = 288;  // 16:9
+
+    // Check if we have any images to get dimensions from
+    for (const QPixmap& img : m_gridImages) {
+        if (!img.isNull()) {
+            cellWidth = img.width();
+            cellHeight = img.height();
+            break;
+        }
+    }
+
+    // Create the composite plate image
+    int plateWidth = m_gridCols * cellWidth;
+    int plateHeight = m_gridRows * cellHeight;
+
+    QPixmap plate(plateWidth, plateHeight);
+    plate.fill(QColor(30, 30, 30));  // Dark background
+
+    QPainter painter(&plate);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // Font for text overlay and placeholders
+    QFont font("Segoe UI", 10);
+    painter.setFont(font);
+
+    int total = m_gridCols * m_gridRows;
+    for (int i = 0; i < total; ++i) {
+        int row = i / m_gridCols;
+        int col = i % m_gridCols;
+        int x = col * cellWidth;
+        int y = row * cellHeight;
+
+        if (i < m_gridImages.size() && !m_gridImages[i].isNull()) {
+            // Draw the image
+            QPixmap scaled = m_gridImages[i].scaled(
+                cellWidth, cellHeight,
+                Qt::KeepAspectRatioByExpanding,
+                Qt::SmoothTransformation
+            );
+
+            // Center crop if needed
+            int srcX = (scaled.width() - cellWidth) / 2;
+            int srcY = (scaled.height() - cellHeight) / 2;
+
+            painter.drawPixmap(x, y, scaled, srcX, srcY, cellWidth, cellHeight);
+
+            // Draw text overlay at bottom
+            if (i < m_gridTexts.size() && !m_gridTexts[i].isEmpty()) {
+                QString text = m_gridTexts[i];
+                if (text.length() > 100) {
+                    text = text.left(97) + "...";
+                }
+
+                // Semi-transparent background for text
+                QRect textBgRect(x, y + cellHeight - 40, cellWidth, 40);
+                painter.fillRect(textBgRect, QColor(0, 0, 0, 180));
+
+                // Draw text
+                painter.setPen(QColor(220, 220, 220));
+                QRect textRect(x + 5, y + cellHeight - 38, cellWidth - 10, 36);
+                painter.drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, text);
+            }
+        } else {
+            // Draw placeholder cell
+            QRect cellRect(x, y, cellWidth, cellHeight);
+            painter.fillRect(cellRect, QColor(40, 40, 40));
+            painter.setPen(QColor(80, 80, 80));
+            painter.drawRect(cellRect.adjusted(0, 0, -1, -1));
+
+            // Draw "loading" indicator or index number
+            painter.setPen(QColor(100, 100, 100));
+            QString indexText = QString("%1").arg(i + 1);
+            painter.drawText(cellRect, Qt::AlignCenter, indexText);
+        }
+
+        // Draw cell border
+        painter.setPen(QColor(60, 60, 60));
+        painter.drawRect(x, y, cellWidth - 1, cellHeight - 1);
+    }
+
+    painter.end();
+
+    // Display the composite plate
+    m_originalPixmap = plate;
+    m_zoomPercent = 100;
+
+    // Auto-fit to view
+    QSize viewSize = m_scrollArea->viewport()->size();
+    if (viewSize.width() > 0 && viewSize.height() > 0) {
+        double scaleW = static_cast<double>(viewSize.width() - 20) / plateWidth;
+        double scaleH = static_cast<double>(viewSize.height() - 20) / plateHeight;
+        double scale = qMin(scaleW, scaleH);
+        if (scale < 1.0) {
+            m_zoomPercent = static_cast<int>(scale * 100);
+        }
+    }
+
+    m_zoomSlider->blockSignals(true);
+    m_zoomSlider->setValue(m_zoomPercent);
+    m_zoomSlider->blockSignals(false);
+
+    updateZoomedImage();
+}
+
+bool ImageViewerWidget::eventFilter(QObject* obj, QEvent* event) {
+    if (obj == m_imageLabel && event->type() == QEvent::MouseButtonDblClick) {
+        QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton && !m_originalPixmap.isNull()) {
+            showFullSizeImage();
+            return true;
+        }
+    }
+    return QWidget::eventFilter(obj, event);
+}
+
+void ImageViewerWidget::showFullSizeImage() {
+    if (m_originalPixmap.isNull()) return;
+
+    // Create fullscreen dialog
+    QDialog* dialog = new QDialog(this);
+    dialog->setWindowTitle("Image - Taille Originale");
+    dialog->setWindowFlags(Qt::Dialog | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // Get screen size
+    QScreen* screen = QGuiApplication::primaryScreen();
+    QSize screenSize = screen->availableSize();
+
+    // Scale image to fit screen if larger
+    QPixmap displayPixmap = m_originalPixmap;
+    if (displayPixmap.width() > screenSize.width() * 0.9 ||
+        displayPixmap.height() > screenSize.height() * 0.9) {
+        displayPixmap = displayPixmap.scaled(
+            screenSize.width() * 0.9,
+            screenSize.height() * 0.9,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+        );
+    }
+
+    // Layout with scrollable image
+    auto* layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    auto* scrollArea = new QScrollArea(dialog);
+    scrollArea->setWidgetResizable(false);
+    scrollArea->setAlignment(Qt::AlignCenter);
+    scrollArea->setStyleSheet("background-color: #1a1a1a; border: none;");
+
+    auto* imageLabel = new QLabel(dialog);
+    imageLabel->setPixmap(displayPixmap);
+    imageLabel->setAlignment(Qt::AlignCenter);
+    scrollArea->setWidget(imageLabel);
+
+    layout->addWidget(scrollArea);
+
+    // Size dialog to fit image
+    dialog->resize(displayPixmap.width() + 20, displayPixmap.height() + 40);
+    dialog->exec();
+
+    LOG_INFO("Displayed image in full size dialog");
 }
 
 } // namespace codex::ui

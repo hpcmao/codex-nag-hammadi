@@ -422,6 +422,11 @@ void PipelineController::finishWithSuccess(const QPixmap& image) {
 
     setState(PipelineState::Completed, "Generation terminee");
     emit progressUpdated(100, "Termine");
+
+    LOG_INFO(QString("PipelineController %1 emitting generationCompleted, image %2x%3")
+             .arg(reinterpret_cast<quintptr>(this))
+             .arg(image.width()).arg(image.height()));
+
     emit generationCompleted(image, m_lastResult.imagenPrompt);
 
     LOG_INFO("Pipeline completed successfully");
