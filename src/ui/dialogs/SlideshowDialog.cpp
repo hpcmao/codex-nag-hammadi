@@ -22,8 +22,9 @@
 
 namespace codex::ui {
 
-SlideshowDialog::SlideshowDialog(QWidget* parent)
+SlideshowDialog::SlideshowDialog(codex::core::PipelineController* pipelineController, QWidget* parent)
     : QDialog(parent)
+    , m_pipelineController(pipelineController)
 {
     setWindowTitle("Diaporama - Codex Nag Hammadi");
     setMinimumSize(1200, 800);
@@ -32,9 +33,6 @@ SlideshowDialog::SlideshowDialog(QWidget* parent)
     // Create temp directory for audio files
     m_tempDir = QDir::tempPath() + "/codex_slideshow_" + QString::number(QDateTime::currentMSecsSinceEpoch());
     QDir().mkpath(m_tempDir);
-
-    // Create pipeline controller
-    m_pipelineController = new codex::core::PipelineController(this);
 
     // Create TTS client
     m_ttsClient = new codex::api::EdgeTTSClient(this);
@@ -55,15 +53,13 @@ SlideshowDialog::SlideshowDialog(QWidget* parent)
     m_slideTimer->setSingleShot(true);
     connect(m_slideTimer, &QTimer::timeout, this, &SlideshowDialog::onSlideTimerTimeout);
 
-    // Connect pipeline signals with direct connection
-    bool connOk = connect(m_pipelineController, &codex::core::PipelineController::generationCompleted,
-            this, &SlideshowDialog::onImageGenerated, Qt::DirectConnection);
-    LOG_INFO(QString("SlideshowDialog: pipeline generationCompleted connection: %1, controller=%2")
-             .arg(connOk ? "OK" : "FAILED")
-             .arg(reinterpret_cast<quintptr>(m_pipelineController)));
-
+    // Connect pipeline signals
+    connect(m_pipelineController, &codex::core::PipelineController::generationCompleted,
+            this, &SlideshowDialog::onImageGenerated);
     connect(m_pipelineController, &codex::core::PipelineController::generationFailed,
-            this, &SlideshowDialog::onImageGenerationFailed, Qt::DirectConnection);
+            this, &SlideshowDialog::onImageGenerationFailed);
+
+    LOG_INFO("SlideshowDialog: Connected to shared PipelineController");
 
     // Connect TTS signals
     connect(m_ttsClient, &codex::api::EdgeTTSClient::speechGenerated,

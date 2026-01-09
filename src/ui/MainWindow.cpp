@@ -910,6 +910,12 @@ void MainWindow::onPipelineProgress(int percent, const QString& step) {
 }
 
 void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt) {
+    // If slideshow is using the pipeline, ignore this signal
+    if (m_slideshowActive) {
+        LOG_INFO("MainWindow ignoring pipeline completion (slideshow active)");
+        return;
+    }
+
     // Store the prompt and display it in the prompt tab
     if (!prompt.isEmpty()) {
         m_generatedPrompt = prompt;
@@ -955,6 +961,12 @@ void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt
 }
 
 void MainWindow::onPipelineFailed(const QString& error) {
+    // If slideshow is using the pipeline, ignore this signal
+    if (m_slideshowActive) {
+        LOG_INFO("MainWindow ignoring pipeline failure (slideshow active)");
+        return;
+    }
+
     LOG_ERROR(QString("Pipeline failed: %1").arg(error));
 
     if (m_plateGenerating && m_plateNextIndex < m_plateTextSegments.size()) {
@@ -1018,9 +1030,25 @@ void MainWindow::onStartSlideshow() {
         return;
     }
 
-    // Create and show the slideshow dialog
-    SlideshowDialog* dialog = new SlideshowDialog(this);
+    // Check if generation is in progress
+    if (m_pipelineController->isRunning() || m_plateGenerating) {
+        codex::utils::MessageBox::warning(this, "Generation en cours",
+            "Veuillez attendre la fin de la generation en cours avant d'ouvrir le diaporama.");
+        return;
+    }
+
+    // Mark slideshow as active so MainWindow ignores pipeline signals
+    m_slideshowActive = true;
+
+    // Create and show the slideshow dialog with shared PipelineController
+    SlideshowDialog* dialog = new SlideshowDialog(m_pipelineController, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+
+    // When dialog is destroyed, reset the slideshow flag
+    connect(dialog, &QObject::destroyed, this, [this]() {
+        m_slideshowActive = false;
+        LOG_INFO("Slideshow closed, MainWindow resuming pipeline handling");
+    });
 
     // Set the content with selected text and current treatise info
     dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, 2, 2);
@@ -1028,7 +1056,7 @@ void MainWindow::onStartSlideshow() {
     dialog->show();
 
     statusBar()->showMessage("Diaporama ouvert");
-    LOG_INFO("Slideshow dialog opened");
+    LOG_INFO("Slideshow dialog opened, MainWindow pipeline handling suspended");
 }
 
 void MainWindow::onGenerateAllAndSlideshow() {

@@ -37,7 +37,7 @@ class SlideshowDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit SlideshowDialog(QWidget* parent = nullptr);
+    explicit SlideshowDialog(codex::core::PipelineController* pipelineController, QWidget* parent = nullptr);
     ~SlideshowDialog();
 
     // Set the full text and plate size to generate

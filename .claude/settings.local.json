@@ -73,7 +73,14 @@
       "Bash(start codex-nag-hammadi.exe)",
       "Bash(start \"\" \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build/bin/Debug/codex-nag-hammadi.exe\")",
       "Bash(cmd //c:*)",
-      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" --build \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build\" --config Debug)"
+      "Bash(\"C:/Program Files/CMake/bin/cmake.exe\" --build \"C:/Users/hpcmao/Documents/_Programmation/_codex-nag-hammadi/build\" --config Debug)",
+      "Bash(python patch_plate_gen.py:*)",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi && taskkill /F /IM \"\"Codex Nag Hammadi BD.exe\"\" 2>nul & cmake --build build --config Release\")",
+      "Bash(/c/Program Files/CMake/bin/cmake.exe --build:*)",
+      "Bash(cmd /c \"start \"\" \"\"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\build\\\\bin\\\\Release\\\\codex-nag-hammadi.exe\"\"\")",
+      "Bash(cmd /c \"start \"\"\"\" \"\"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\build\\\\bin\\\\Release\\\\codex-nag-hammadi.exe\"\"\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi && cmake --build build --config Release\")",
+      "Bash(cmd /c \"cmake --build build --config Release\")"
     ]
   }
 }

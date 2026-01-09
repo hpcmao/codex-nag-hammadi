@@ -114,6 +114,9 @@ private:
     int m_plateRows = 0;
     bool m_plateGenerating = false;
 
+    // Slideshow state - when true, pipeline signals are handled by SlideshowDialog
+    bool m_slideshowActive = false;
+
     // Quick settings in toolbar
     QComboBox* m_voiceCombo = nullptr;
     QLineEdit* m_outputFolderEdit = nullptr;
