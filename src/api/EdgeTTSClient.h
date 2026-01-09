@@ -51,6 +51,7 @@ private:
 
     QProcess* m_process = nullptr;
     QString m_outputFilePath;
+    QString m_textFilePath;
     QString m_currentText;
     bool m_isGenerating = false;
 };

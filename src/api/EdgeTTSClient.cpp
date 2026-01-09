@@ -27,9 +27,12 @@ EdgeTTSClient::EdgeTTSClient(QObject* parent)
 
 EdgeTTSClient::~EdgeTTSClient() {
     stop();
-    // Clean up temp file
+    // Clean up temp files
     if (!m_outputFilePath.isEmpty() && QFile::exists(m_outputFilePath)) {
         QFile::remove(m_outputFilePath);
+    }
+    if (!m_textFilePath.isEmpty() && QFile::exists(m_textFilePath)) {
+        QFile::remove(m_textFilePath);
     }
 }
 
@@ -74,9 +77,12 @@ void EdgeTTSClient::generateSpeech(const QString& text, const EdgeVoiceSettings&
     emit requestStarted();
     emit generationProgress(5);
 
-    // Clean up previous temp file
+    // Clean up previous temp files
     if (!m_outputFilePath.isEmpty() && QFile::exists(m_outputFilePath)) {
         QFile::remove(m_outputFilePath);
+    }
+    if (!m_textFilePath.isEmpty() && QFile::exists(m_textFilePath)) {
+        QFile::remove(m_textFilePath);
     }
 
     // Create temp file path for output
@@ -114,12 +120,28 @@ void EdgeTTSClient::generateSpeech(const QString& text, const EdgeVoiceSettings&
         args << "--volume" << volStr;
     }
 
-    // Text and output file
-    args << "--text" << text;
+    // Write text to temp file to avoid command line escaping issues
+    m_textFilePath = QString("%1/edge_tts_text_%2.txt")
+        .arg(tempDir)
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces).left(8));
+
+    QFile textFile(m_textFilePath);
+    if (textFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        textFile.write(text.toUtf8());
+        textFile.close();
+    } else {
+        m_isGenerating = false;
+        emit errorOccurred("Impossible de creer le fichier texte temporaire");
+        return;
+    }
+
+    // Use --file instead of --text to handle special characters
+    args << "--file" << m_textFilePath;
     args << "--write-media" << m_outputFilePath;
 
     LOG_INFO(QString("EdgeTTS: Starting generation, voice: %1, text length: %2")
              .arg(settings.voiceId).arg(text.length()));
+    LOG_INFO(QString("EdgeTTS: Text file: %1").arg(m_textFilePath));
     LOG_INFO(QString("EdgeTTS: Output file: %1").arg(m_outputFilePath));
 
     emit generationProgress(10);

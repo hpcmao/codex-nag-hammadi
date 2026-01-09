@@ -15,6 +15,7 @@
 #include <QPainter>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QApplication>
 #include <QScreen>
@@ -47,6 +48,14 @@ SlideshowDialog::SlideshowDialog(codex::core::PipelineController* pipelineContro
             this, &SlideshowDialog::onAudioPositionChanged);
     connect(m_audioPlayer, &QMediaPlayer::mediaStatusChanged,
             this, &SlideshowDialog::onAudioMediaStatusChanged);
+    connect(m_audioPlayer, &QMediaPlayer::errorOccurred,
+            this, [this](QMediaPlayer::Error error, const QString& errorString) {
+                LOG_ERROR(QString("QMediaPlayer error %1: %2").arg(error).arg(errorString));
+            });
+    connect(m_audioPlayer, &QMediaPlayer::playbackStateChanged,
+            this, [this](QMediaPlayer::PlaybackState state) {
+                LOG_INFO(QString("QMediaPlayer state changed to: %1").arg(state));
+            });
 
     // Slide timer (for slides without audio)
     m_slideTimer = new QTimer(this);
@@ -117,29 +126,9 @@ void SlideshowDialog::setupUi() {
     topLayout->setContentsMargins(15, 10, 15, 10);
     topLayout->setSpacing(15);
 
-    auto* titleLabel = new QLabel("LECTURE DIAPORAMA", this);
+    auto* titleLabel = new QLabel("DIAPORAMA", this);
     titleLabel->setStyleSheet("font-weight: bold; font-size: 14px; color: #007acc;");
     topLayout->addWidget(titleLabel);
-
-    topLayout->addSpacing(20);
-
-    m_generateBtn = new QPushButton("LECTURE", this);
-    m_generateBtn->setMinimumWidth(120);
-    m_generateBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #094771;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 10px 25px;
-            font-weight: bold;
-            font-size: 13px;
-        }
-        QPushButton:hover { background-color: #0a5a8c; }
-        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
-    )");
-    connect(m_generateBtn, &QPushButton::clicked, this, &SlideshowDialog::startGeneration);
-    topLayout->addWidget(m_generateBtn);
 
     topLayout->addStretch();
 
@@ -216,8 +205,8 @@ void SlideshowDialog::setupUi() {
     m_imageLabel->setMinimumSize(640, 480);
     m_imageLabel->setStyleSheet("background-color: #1a1a1a; border: 1px solid #3d3d3d;");
     m_imageLabel->setText("<div style='color: #666; text-align: center; padding: 100px;'>"
-                          "<p style='font-size: 24px;'>Cliquez sur Lecture</p>"
-                          "<p>pour demarrer le diaporama</p></div>");
+                          "<p style='font-size: 24px;'>Generation en cours...</p>"
+                          "<p>Les images apparaitront ici</p></div>");
     imageLayout->addWidget(m_imageLabel, 1);
 
     // Text overlay (at bottom of image)
@@ -254,11 +243,11 @@ void SlideshowDialog::setupUi() {
     connect(m_prevBtn, &QPushButton::clicked, this, &SlideshowDialog::onPrevious);
     controlsLayout->addWidget(m_prevBtn);
 
-    // Play
-    m_playBtn = new QPushButton("Play", this);
-    m_playBtn->setFixedSize(60, 35);
-    m_playBtn->setEnabled(false);
-    m_playBtn->setStyleSheet(R"(
+    // Play/Stop toggle button
+    m_playStopBtn = new QPushButton("Play", this);
+    m_playStopBtn->setFixedSize(70, 35);
+    m_playStopBtn->setEnabled(false);
+    m_playStopBtn->setStyleSheet(R"(
         QPushButton {
             background-color: #2d5a27;
             color: white;
@@ -269,32 +258,8 @@ void SlideshowDialog::setupUi() {
         QPushButton:hover { background-color: #3d7a37; }
         QPushButton:disabled { background-color: #3d3d3d; color: #666; }
     )");
-    connect(m_playBtn, &QPushButton::clicked, this, &SlideshowDialog::onPlay);
-    controlsLayout->addWidget(m_playBtn);
-
-    // Pause
-    m_pauseBtn = new QPushButton("Pause", this);
-    m_pauseBtn->setFixedSize(60, 35);
-    m_pauseBtn->setEnabled(false);
-    connect(m_pauseBtn, &QPushButton::clicked, this, &SlideshowDialog::onPause);
-    controlsLayout->addWidget(m_pauseBtn);
-
-    // Stop
-    m_stopBtn = new QPushButton("Stop", this);
-    m_stopBtn->setFixedSize(50, 35);
-    m_stopBtn->setEnabled(false);
-    m_stopBtn->setStyleSheet(R"(
-        QPushButton {
-            background-color: #8b0000;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        QPushButton:hover { background-color: #a52a2a; }
-        QPushButton:disabled { background-color: #3d3d3d; color: #666; }
-    )");
-    connect(m_stopBtn, &QPushButton::clicked, this, &SlideshowDialog::onStop);
-    controlsLayout->addWidget(m_stopBtn);
+    connect(m_playStopBtn, &QPushButton::clicked, this, &SlideshowDialog::onPlayStop);
+    controlsLayout->addWidget(m_playStopBtn);
 
     // Next
     m_nextBtn = new QPushButton(">>", this);
@@ -303,7 +268,7 @@ void SlideshowDialog::setupUi() {
     connect(m_nextBtn, &QPushButton::clicked, this, &SlideshowDialog::onNext);
     controlsLayout->addWidget(m_nextBtn);
 
-    controlsLayout->addSpacing(20);
+    controlsLayout->addSpacing(15);
 
     // Position slider
     m_positionSlider = new QSlider(Qt::Horizontal, this);
@@ -315,28 +280,45 @@ void SlideshowDialog::setupUi() {
     // Time label
     m_timeLabel = new QLabel("0:00 / 0:00", this);
     m_timeLabel->setStyleSheet("color: #888; font-family: monospace;");
-    m_timeLabel->setMinimumWidth(100);
+    m_timeLabel->setMinimumWidth(90);
     controlsLayout->addWidget(m_timeLabel);
 
-    controlsLayout->addSpacing(20);
+    controlsLayout->addSpacing(15);
+
+    // Voice selector
+    controlsLayout->addWidget(new QLabel("Voix:", this));
+    m_voiceCombo = new QComboBox(this);
+    m_voiceCombo->addItem("Henri (homme)", "fr-FR-HenriNeural");
+    m_voiceCombo->addItem("Denise (femme)", "fr-FR-DeniseNeural");
+    m_voiceCombo->addItem("Eloise (douce)", "fr-FR-EloiseNeural");
+    m_voiceCombo->addItem("Vivienne (femme)", "fr-FR-VivienneMultilingualNeural");
+    m_voiceCombo->addItem("Remy (homme)", "fr-FR-RemyMultilingualNeural");
+    m_voiceCombo->setMinimumWidth(140);
+    // Set current voice from config
+    QString savedVoice = codex::utils::Config::instance().edgeTtsVoice();
+    int voiceIdx = m_voiceCombo->findData(savedVoice);
+    if (voiceIdx >= 0) m_voiceCombo->setCurrentIndex(voiceIdx);
+    controlsLayout->addWidget(m_voiceCombo);
+
+    controlsLayout->addSpacing(10);
 
     // Repeat
-    m_repeatCheck = new QCheckBox("Repeter", this);
+    m_repeatCheck = new QCheckBox("Boucle", this);
     connect(m_repeatCheck, &QCheckBox::toggled, this, &SlideshowDialog::onRepeatToggled);
     controlsLayout->addWidget(m_repeatCheck);
 
-    controlsLayout->addSpacing(20);
+    controlsLayout->addSpacing(10);
 
     // Volume
     controlsLayout->addWidget(new QLabel("Vol:", this));
     m_volumeSlider = new QSlider(Qt::Horizontal, this);
     m_volumeSlider->setRange(0, 100);
     m_volumeSlider->setValue(80);
-    m_volumeSlider->setFixedWidth(80);
+    m_volumeSlider->setFixedWidth(70);
     connect(m_volumeSlider, &QSlider::valueChanged, this, &SlideshowDialog::onVolumeChanged);
     controlsLayout->addWidget(m_volumeSlider);
 
-    controlsLayout->addSpacing(20);
+    controlsLayout->addSpacing(10);
 
     // Fullscreen
     m_fullscreenBtn = new QPushButton("Plein ecran", this);
@@ -349,7 +331,7 @@ void SlideshowDialog::setupUi() {
     mainLayout->addWidget(contentWidget, 1);
 
     // Status bar
-    m_statusLabel = new QLabel("Pret. Selectionnez un passage de texte et cliquez sur Lecture.", this);
+    m_statusLabel = new QLabel("Generation automatique en cours...", this);
     m_statusLabel->setStyleSheet("color: #888; font-size: 11px;");
     contentLayout->addWidget(m_statusLabel);
 }
@@ -386,7 +368,6 @@ void SlideshowDialog::startGeneration() {
     // Update UI
     m_generationProgress->setVisible(true);
     m_generationProgress->setValue(0);
-    m_generateBtn->setEnabled(false);
 
     // Add placeholder items to thumbnail list
     for (int i = 0; i < m_slides.size(); ++i) {
@@ -444,8 +425,12 @@ void SlideshowDialog::splitTextIntoSegments() {
         m_slides.append(slide);
     }
 
-    LOG_INFO(QString("Split text into %1 segments for %2x%3 plate")
-             .arg(m_slides.size()).arg(m_cols).arg(m_rows));
+    LOG_INFO(QString("Split text into %1 segments for %2x%3 plate. Total sentences found: %4")
+             .arg(m_slides.size()).arg(m_cols).arg(m_rows).arg(sentences.size()));
+
+    for (int i = 0; i < m_slides.size(); ++i) {
+        LOG_INFO(QString("Slide %1 text length: %2").arg(i).arg(m_slides[i].text.length()));
+    }
 }
 
 void SlideshowDialog::generateNextImage() {
@@ -476,20 +461,19 @@ void SlideshowDialog::generateNextAudio() {
         // All audio generated
         m_generationInProgress = false;
         m_generationProgress->setVisible(false);
-        m_generateBtn->setEnabled(true);
         m_generationStatus->setText("Termine!");
 
         // Enable controls
-        m_playBtn->setEnabled(true);
+        m_playStopBtn->setEnabled(true);
         m_prevBtn->setEnabled(true);
         m_nextBtn->setEnabled(true);
         m_positionSlider->setEnabled(true);
 
-        // Show first slide and auto-play
-        if (!m_slides.isEmpty() && m_slides[0].imageReady) {
+        // Show first slide and auto-play if not already playing
+        if (!m_slides.isEmpty() && m_slides[0].imageReady && !m_isPlaying) {
             showSlide(0);
             // Auto-start playback
-            QTimer::singleShot(500, this, &SlideshowDialog::onPlay);
+            QTimer::singleShot(500, this, &SlideshowDialog::onPlayStop);
         }
 
         m_statusLabel->setText(QString("Lecture: %1 images avec audio")
@@ -503,8 +487,8 @@ void SlideshowDialog::generateNextAudio() {
     int idx = m_nextAudioToGenerate;
     m_generationStatus->setText(QString("Audio %1/%2...").arg(idx + 1).arg(m_slides.size()));
 
-    // Generate TTS for this segment
-    QString voiceId = codex::utils::Config::instance().edgeTtsVoice();
+    // Generate TTS for this segment using selected voice
+    QString voiceId = m_voiceCombo->currentData().toString();
     if (voiceId.isEmpty()) {
         voiceId = "fr-FR-HenriNeural";
     }
@@ -515,15 +499,27 @@ void SlideshowDialog::generateNextAudio() {
     settings.pitch = 0;
     settings.volume = 100;
 
+    LOG_INFO(QString("Generating audio with voice: %1").arg(voiceId));
     m_ttsClient->generateSpeech(m_slides[idx].text, settings);
 }
 
 void SlideshowDialog::onImageGenerated(const QPixmap& image, const QString& prompt) {
     Q_UNUSED(prompt)
 
-    LOG_INFO(QString("SlideshowDialog::onImageGenerated called, nextIdx=%1, slides=%2, image=%3x%4")
-             .arg(m_nextImageToGenerate).arg(m_slides.size())
+    LOG_INFO(QString("SlideshowDialog::onImageGenerated called, generationInProgress=%1, nextIdx=%2, slides=%3, image=%4x%5")
+             .arg(m_generationInProgress).arg(m_nextImageToGenerate).arg(m_slides.size())
              .arg(image.width()).arg(image.height()));
+
+    // Ignore signals if we're not actively generating for the slideshow
+    if (!m_generationInProgress) {
+        LOG_INFO("SlideshowDialog: Not in generation mode, ignoring signal");
+        return;
+    }
+
+    if (image.isNull()) {
+        LOG_WARN("SlideshowDialog: Received null image, ignoring");
+        return;
+    }
 
     if (m_nextImageToGenerate >= m_slides.size()) {
         LOG_WARN("SlideshowDialog: nextImageToGenerate >= slides.size(), ignoring");
@@ -540,7 +536,8 @@ void SlideshowDialog::onImageGenerated(const QPixmap& image, const QString& prom
     if (idx < m_thumbnailList->count()) {
         QPixmap thumb = image.scaled(160, 90, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         m_thumbnailList->item(idx)->setIcon(QIcon(thumb));
-        m_thumbnailList->item(idx)->setText(QString("Image %1").arg(idx + 1));
+        m_thumbnailList->item(idx)->setText(QString("Image %1 (Prete)").arg(idx + 1));
+        LOG_INFO(QString("Thumbnail updated for index %1").arg(idx));
     }
 
     // Update progress
@@ -558,6 +555,12 @@ void SlideshowDialog::onImageGenerated(const QPixmap& image, const QString& prom
 
 void SlideshowDialog::onImageGenerationFailed(const QString& error) {
     LOG_ERROR(QString("Slideshow image generation failed: %1").arg(error));
+
+    // Ignore if not in generation mode
+    if (!m_generationInProgress) {
+        LOG_INFO("SlideshowDialog: Not in generation mode, ignoring error signal");
+        return;
+    }
 
     // Create placeholder image
     if (m_nextImageToGenerate < m_slides.size()) {
@@ -585,6 +588,8 @@ void SlideshowDialog::onImageGenerationFailed(const QString& error) {
 }
 
 void SlideshowDialog::onAudioGenerated(const QByteArray& audioData, int durationMs) {
+    // Ignore if not in generation mode
+    if (!m_generationInProgress) return;
     if (m_nextAudioToGenerate >= m_slides.size()) return;
 
     int idx = m_nextAudioToGenerate;
@@ -604,6 +609,17 @@ void SlideshowDialog::onAudioGenerated(const QByteArray& audioData, int duration
     // Update progress
     updateProgress();
 
+    // Auto-start playback as soon as first slide has both image and audio ready
+    if (idx == 0 && !m_isPlaying && m_slides[0].imageReady && m_slides[0].audioReady) {
+        LOG_INFO("First slide ready with audio, auto-starting playback");
+        m_playStopBtn->setEnabled(true);
+        m_prevBtn->setEnabled(true);
+        m_nextBtn->setEnabled(true);
+        m_positionSlider->setEnabled(true);
+        showSlide(0);
+        QTimer::singleShot(100, this, &SlideshowDialog::onPlayStop);
+    }
+
     // Generate next audio
     m_nextAudioToGenerate++;
     generateNextAudio();
@@ -611,6 +627,9 @@ void SlideshowDialog::onAudioGenerated(const QByteArray& audioData, int duration
 
 void SlideshowDialog::onAudioError(const QString& error) {
     LOG_ERROR(QString("Slideshow audio generation failed: %1").arg(error));
+
+    // Ignore if not in generation mode
+    if (!m_generationInProgress) return;
 
     if (m_nextAudioToGenerate < m_slides.size()) {
         m_slides[m_nextAudioToGenerate].audioDurationMs = 5000;  // Default 5 seconds
@@ -638,6 +657,7 @@ void SlideshowDialog::showSlide(int index) {
 
     // Display image - use a reasonable minimum size if widget not laid out yet
     QSize targetSize = m_imageLabel->size();
+    LOG_INFO(QString("m_imageLabel size: %1x%2").arg(targetSize.width()).arg(targetSize.height()));
     if (targetSize.width() < 100 || targetSize.height() < 100) {
         targetSize = QSize(800, 600);
     }
@@ -697,53 +717,68 @@ void SlideshowDialog::updateSlideDisplay() {
     m_statusLabel->setText(QString("Diapo %1/%2").arg(m_currentIndex + 1).arg(m_slides.size()));
 }
 
-void SlideshowDialog::onPlay() {
+void SlideshowDialog::onPlayStop() {
     if (m_slides.isEmpty()) return;
 
-    m_isPlaying = true;
-    m_isPaused = false;
+    if (m_isPlaying) {
+        // Stop playback
+        m_isPlaying = false;
+        m_isPaused = false;
+        m_audioPlayer->stop();
+        m_slideTimer->stop();
 
-    if (m_currentIndex < 0) {
-        showSlide(0);
-    }
+        m_playStopBtn->setText("Play");
+        m_playStopBtn->setStyleSheet(R"(
+            QPushButton {
+                background-color: #2d5a27;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #3d7a37; }
+            QPushButton:disabled { background-color: #3d3d3d; color: #666; }
+        )");
+    } else {
+        // Start playback
+        m_isPlaying = true;
+        m_isPaused = false;
 
-    // Start audio or timer for current slide
-    if (m_currentIndex >= 0 && m_currentIndex < m_slides.size()) {
-        const SlideItem& slide = m_slides[m_currentIndex];
-        if (!slide.audioPath.isEmpty() && QFile::exists(slide.audioPath)) {
-            m_audioPlayer->setSource(QUrl::fromLocalFile(slide.audioPath));
-            m_audioPlayer->play();
-        } else {
-            m_slideTimer->start(slide.audioDurationMs > 0 ? slide.audioDurationMs : 5000);
+        if (m_currentIndex < 0) {
+            showSlide(0);
         }
+
+        // Start audio or timer for current slide
+        if (m_currentIndex >= 0 && m_currentIndex < m_slides.size()) {
+            const SlideItem& slide = m_slides[m_currentIndex];
+            LOG_INFO(QString("Playing slide %1, audioPath=%2, audioReady=%3")
+                     .arg(m_currentIndex).arg(slide.audioPath).arg(slide.audioReady));
+            if (!slide.audioPath.isEmpty() && QFile::exists(slide.audioPath)) {
+                QFileInfo fi(slide.audioPath);
+                LOG_INFO(QString("Audio file exists, size=%1 bytes").arg(fi.size()));
+                m_audioPlayer->setSource(QUrl::fromLocalFile(slide.audioPath));
+                m_audioPlayer->play();
+                LOG_INFO("Called m_audioPlayer->play()");
+            } else {
+                LOG_WARN(QString("No audio file, using timer. Path=%1, exists=%2")
+                         .arg(slide.audioPath).arg(QFile::exists(slide.audioPath)));
+                m_slideTimer->start(slide.audioDurationMs > 0 ? slide.audioDurationMs : 5000);
+            }
+        }
+
+        m_playStopBtn->setText("Stop");
+        m_playStopBtn->setStyleSheet(R"(
+            QPushButton {
+                background-color: #8b0000;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #a52a2a; }
+            QPushButton:disabled { background-color: #3d3d3d; color: #666; }
+        )");
     }
-
-    m_playBtn->setEnabled(false);
-    m_pauseBtn->setEnabled(true);
-    m_stopBtn->setEnabled(true);
-}
-
-void SlideshowDialog::onPause() {
-    if (!m_isPlaying) return;
-
-    m_isPaused = true;
-    m_audioPlayer->pause();
-    m_slideTimer->stop();
-
-    m_playBtn->setEnabled(true);
-    m_pauseBtn->setEnabled(false);
-}
-
-void SlideshowDialog::onStop() {
-    m_isPlaying = false;
-    m_isPaused = false;
-
-    m_audioPlayer->stop();
-    m_slideTimer->stop();
-
-    m_playBtn->setEnabled(true);
-    m_pauseBtn->setEnabled(false);
-    m_stopBtn->setEnabled(false);
 }
 
 void SlideshowDialog::onPrevious() {
@@ -862,13 +897,7 @@ void SlideshowDialog::onAudioMediaStatusChanged(QMediaPlayer::MediaStatus status
 void SlideshowDialog::keyPressEvent(QKeyEvent* event) {
     switch (event->key()) {
         case Qt::Key_Space:
-            if (m_isPaused) {
-                onPlay();
-            } else if (m_isPlaying) {
-                onPause();
-            } else {
-                onPlay();
-            }
+            onPlayStop();
             break;
 
         case Qt::Key_Right:
@@ -914,7 +943,11 @@ void SlideshowDialog::resizeEvent(QResizeEvent* event) {
 }
 
 void SlideshowDialog::closeEvent(QCloseEvent* event) {
-    onStop();
+    // Stop playback
+    m_isPlaying = false;
+    m_isPaused = false;
+    m_audioPlayer->stop();
+    m_slideTimer->stop();
     m_generationInProgress = false;
     QDialog::closeEvent(event);
 }

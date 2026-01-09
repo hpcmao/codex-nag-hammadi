@@ -56,9 +56,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private slots:
-    void onPlay();
-    void onPause();
-    void onStop();
+    void onPlayStop();
     void onPrevious();
     void onNext();
     void onSliderMoved(int position);
@@ -94,9 +92,7 @@ private:
     QLabel* m_timeLabel = nullptr;
 
     // Transport controls
-    QPushButton* m_playBtn = nullptr;
-    QPushButton* m_pauseBtn = nullptr;
-    QPushButton* m_stopBtn = nullptr;
+    QPushButton* m_playStopBtn = nullptr;
     QPushButton* m_prevBtn = nullptr;
     QPushButton* m_nextBtn = nullptr;
     QPushButton* m_fullscreenBtn = nullptr;
@@ -109,9 +105,8 @@ private:
     QProgressBar* m_generationProgress = nullptr;
     QLabel* m_generationStatus = nullptr;
 
-    // Plate size selector
-    QComboBox* m_plateSizeCombo = nullptr;
-    QPushButton* m_generateBtn = nullptr;
+    // Voice selector
+    QComboBox* m_voiceCombo = nullptr;
 
     // Data
     QVector<SlideItem> m_slides;

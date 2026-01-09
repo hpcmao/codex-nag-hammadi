@@ -1030,12 +1030,12 @@ void MainWindow::onStartSlideshow() {
         return;
     }
 
-    // Check if generation is in progress
-    if (m_pipelineController->isRunning() || m_plateGenerating) {
-        codex::utils::MessageBox::warning(this, "Generation en cours",
-            "Veuillez attendre la fin de la generation en cours avant d'ouvrir le diaporama.");
-        return;
+    // Cancel any ongoing generation to free the pipeline for the slideshow
+    if (m_pipelineController->isRunning()) {
+        m_pipelineController->cancel();
+        LOG_INFO("Cancelled ongoing generation to start slideshow");
     }
+    m_plateGenerating = false;
 
     // Mark slideshow as active so MainWindow ignores pipeline signals
     m_slideshowActive = true;
@@ -1054,6 +1054,9 @@ void MainWindow::onStartSlideshow() {
     dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, 2, 2);
 
     dialog->show();
+
+    // Auto-start generation
+    dialog->startGeneration();
 
     statusBar()->showMessage("Diaporama ouvert");
     LOG_INFO("Slideshow dialog opened, MainWindow pipeline handling suspended");
