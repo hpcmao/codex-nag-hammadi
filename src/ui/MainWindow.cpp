@@ -3,12 +3,14 @@
 #include "widgets/ImageViewerWidget.h"
 #include "widgets/TreatiseListWidget.h"
 #include "widgets/PassagePreviewWidget.h"
-#include "widgets/AudioPlayerWidget.h"
+// Audio player removed - playback is in slideshow dialog
 #include "widgets/SlideshowWidget.h"
 #include "widgets/InfoDockWidget.h"
+#include "widgets/ApiPricingDockWidget.h"
 #include "dialogs/SettingsDialog.h"
 #include "dialogs/ProjectDialog.h"
 #include "dialogs/SlideshowDialog.h"
+#include "dialogs/SessionPickerDialog.h"
 #include "db/repositories/PassageRepository.h"
 #include "db/repositories/ImageRepository.h"
 #include "db/repositories/AudioRepository.h"
@@ -16,12 +18,14 @@
 #include "api/EdgeTTSClient.h"
 #include "api/VeoClient.h"
 #include "core/services/TextParser.h"
+#include "core/services/NarrationCleaner.h"
 #include "core/controllers/PipelineController.h"
 #include "utils/Logger.h"
 #include "utils/Config.h"
 #include "utils/SecureStorage.h"
 #include "utils/MessageBox.h"
 #include "utils/ThemeManager.h"
+#include "utils/MediaStorage.h"
 #include "db/Database.h"
 
 #include <QMenuBar>
@@ -37,8 +41,10 @@
 #include <QDateTime>
 #include <QLabel>
 #include <QPushButton>
+#include <QPointer>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QCloseEvent>
 
 namespace codex::ui {
 
@@ -108,11 +114,55 @@ MainWindow::MainWindow(QWidget* parent)
     // Show recent projects dialog on startup (deferred)
     QTimer::singleShot(500, this, &MainWindow::showRecentProjectsOnStartup);
 
+    // Load saved text if "remember text" option is enabled (deferred to ensure UI is ready)
+    QTimer::singleShot(600, this, [this]() {
+        auto& cfg = codex::utils::Config::instance();
+        if (cfg.rememberText()) {
+            QString lastText = cfg.lastText();
+            QString lastTreatise = cfg.lastTreatiseCode();
+            int selStart = cfg.lastSelectionStart();
+            int selEnd = cfg.lastSelectionEnd();
+
+            if (!lastTreatise.isEmpty()) {
+                // First, select the treatise (this loads the text into the viewer)
+                m_treatiseList->selectTreatiseByCode(lastTreatise);
+
+                // Then after a short delay, highlight the selection in the text viewer
+                QTimer::singleShot(300, this, [this, lastText, lastTreatise, selStart, selEnd]() {
+                    if (selStart >= 0 && selEnd > selStart) {
+                        m_textViewer->selectRange(selStart, selEnd);
+                        m_selectedPassage = lastText;
+                        m_currentTreatiseCode = lastTreatise;
+                        m_selectionStart = selStart;
+                        m_selectionEnd = selEnd;
+                        m_passagePreview->setPassage(lastText, selStart, selEnd);
+                        LOG_INFO(QString("Restored selection [%1-%2] in treatise: %3")
+                                 .arg(selStart).arg(selEnd).arg(lastTreatise));
+                    }
+                });
+            }
+        }
+    });
+
     LOG_INFO("MainWindow initialized");
 }
 
 MainWindow::~MainWindow() {
     delete m_textParser;
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    // Save text if "remember text" option is enabled
+    auto& config = codex::utils::Config::instance();
+    if (config.rememberText()) {
+        config.setLastText(m_selectedPassage);
+        config.setLastTreatiseCode(m_currentTreatiseCode);
+        config.setLastSelection(m_selectionStart, m_selectionEnd);
+        LOG_INFO(QString("Saved text (%1 chars) and selection [%2-%3] for next session")
+                 .arg(m_selectedPassage.length()).arg(m_selectionStart).arg(m_selectionEnd));
+    }
+
+    QMainWindow::closeEvent(event);
 }
 
 void MainWindow::setupUi() {
@@ -186,22 +236,11 @@ void MainWindow::setupUi() {
     rightSplitter->addWidget(centerSplitter);
 
     // Right panel: Image viewer + Audio player
-    auto* rightPanelSplitter = new QSplitter(Qt::Vertical, this);
-
-    // Image viewer
+    // Image viewer (full height, no audio player - audio is in slideshow)
     m_imageViewer = new ImageViewerWidget(this);
-    rightPanelSplitter->addWidget(m_imageViewer);
+    rightSplitter->addWidget(m_imageViewer);
 
-    // Audio player
-    m_audioPlayer = new AudioPlayerWidget(this);
-    rightPanelSplitter->addWidget(m_audioPlayer);
-
-    // Set right panel sizes (image takes most space)
-    rightPanelSplitter->setSizes({400, 100});
-
-    rightSplitter->addWidget(rightPanelSplitter);
-
-    // Set right splitter sizes (50% text area, 50% image/audio)
+    // Set right splitter sizes (50% text area, 50% image viewer)
     rightSplitter->setSizes({500, 500});
 
     mainSplitter->addWidget(rightSplitter);
@@ -216,6 +255,11 @@ void MainWindow::setupUi() {
     addDockWidget(Qt::RightDockWidgetArea, m_infoDock);
     m_infoDock->hide();  // Hidden by default
 
+    // API Pricing dock - shows model selection and costs
+    m_pricingDock = new ApiPricingDockWidget(this);
+    addDockWidget(Qt::RightDockWidgetArea, m_pricingDock);
+    m_pricingDock->show();  // Visible by default
+
     // Toolbar
     auto* toolbar = addToolBar("Main");
     toolbar->setMovable(false);
@@ -227,6 +271,111 @@ void MainWindow::setupUi() {
 
     auto* slideshowAction = toolbar->addAction("Diaporama");
     connect(slideshowAction, &QAction::triggered, this, &MainWindow::onStartSlideshow);
+
+    toolbar->addSeparator();
+
+    // Plate size selector
+    toolbar->addWidget(new QLabel(" Planche: ", this));
+    m_plateSizeCombo = new QComboBox(this);
+    m_plateSizeCombo->addItem("2x2 (4)", QSize(2, 2));
+    m_plateSizeCombo->addItem("3x3 (9)", QSize(3, 3));
+    m_plateSizeCombo->addItem("4x4 (16)", QSize(4, 4));
+    m_plateSizeCombo->addItem("2x3 (6)", QSize(2, 3));
+    m_plateSizeCombo->addItem("3x2 (6)", QSize(3, 2));
+    m_plateSizeCombo->addItem("4x3 (12)", QSize(4, 3));
+    m_plateSizeCombo->setCurrentIndex(1);  // Default 3x3
+    m_plateSizeCombo->setFixedWidth(90);
+    m_plateSizeCombo->setStyleSheet(R"(
+        QComboBox {
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+            border: 1px solid #3d3d3d;
+            border-radius: 3px;
+            padding: 3px 8px;
+        }
+        QComboBox:hover { border-color: #007acc; }
+        QComboBox::drop-down { border: none; }
+        QComboBox QAbstractItemView {
+            background-color: #2d2d2d;
+            color: #d4d4d4;
+            selection-background-color: #094771;
+        }
+    )");
+    connect(m_plateSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        QSize size = m_plateSizeCombo->itemData(index).toSize();
+        m_plateCols = size.width();
+        m_plateRows = size.height();
+    });
+    // Initialize with default value (3x3)
+    m_plateCols = 3;
+    m_plateRows = 3;
+    toolbar->addWidget(m_plateSizeCombo);
+
+    // "Générer Tout + Diaporama" button
+    m_genAllBtn = new QPushButton("Generer Tout + Diapo", this);
+    m_genAllBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #1e5a1e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover { background-color: #2d7a2d; }
+        QPushButton:pressed { background-color: #0d3a0d; }
+    )");
+    m_genAllBtn->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
+    connect(m_genAllBtn, &QPushButton::clicked, this, &MainWindow::onGenerateAllAndSlideshow);
+    toolbar->addWidget(m_genAllBtn);
+
+    // "Générer Vidéo" button
+    m_genVideoBtn = new QPushButton("Generer Video", this);
+    m_genVideoBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #5a1e5a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover { background-color: #7a2d7a; }
+        QPushButton:pressed { background-color: #3a0d3a; }
+    )");
+    m_genVideoBtn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
+    m_genVideoBtn->setToolTip("Generer une video a partir du texte selectionne uniquement (Ctrl+V)");
+    connect(m_genVideoBtn, &QPushButton::clicked, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateVideoFromPreview(m_selectedPassage);
+        }
+    });
+    toolbar->addWidget(m_genVideoBtn);
+
+    // Progress bar next to the button
+    m_progressBar = new QProgressBar(this);
+    m_progressBar->setMinimum(0);
+    m_progressBar->setMaximum(100);
+    m_progressBar->setValue(0);
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setFixedWidth(250);
+    m_progressBar->setFixedHeight(24);
+    m_progressBar->hide();  // Hidden by default
+    m_progressBar->setStyleSheet(R"(
+        QProgressBar {
+            border: 1px solid #3d3d3d;
+            border-radius: 4px;
+            background-color: #2d2d2d;
+            text-align: center;
+            color: #fff;
+            font-weight: bold;
+        }
+        QProgressBar::chunk {
+            background-color: #1e5a1e;
+            border-radius: 3px;
+        }
+    )");
+    toolbar->addWidget(m_progressBar);
 
     // Settings toolbar
     auto* settingsToolbar = addToolBar("Reglages");
@@ -296,29 +445,6 @@ void MainWindow::setupUi() {
     connect(openVideosBtn, &QPushButton::clicked, this, &MainWindow::onOpenVideosFolder);
     settingsToolbar->addWidget(openVideosBtn);
 
-    // Progress bar in status bar
-    m_progressBar = new QProgressBar(this);
-    m_progressBar->setMinimum(0);
-    m_progressBar->setMaximum(100);
-    m_progressBar->setValue(0);
-    m_progressBar->setTextVisible(true);
-    m_progressBar->setFixedWidth(200);
-    m_progressBar->setFixedHeight(18);
-    m_progressBar->hide();  // Hidden by default
-    m_progressBar->setStyleSheet(R"(
-        QProgressBar {
-            border: 1px solid #3d3d3d;
-            border-radius: 3px;
-            background-color: #2d2d2d;
-            text-align: center;
-            color: #fff;
-        }
-        QProgressBar::chunk {
-            background-color: #094771;
-            border-radius: 2px;
-        }
-    )");
-    statusBar()->addPermanentWidget(m_progressBar);
 
     // Status bar
     statusBar()->showMessage("Pret");
@@ -375,6 +501,15 @@ void MainWindow::setupMenus() {
     });
     connect(m_infoDock, &QDockWidget::visibilityChanged, infoAction, &QAction::setChecked);
 
+    auto* pricingAction = viewMenu->addAction("&Tarifs && Modeles...");
+    pricingAction->setShortcut(QKeySequence(Qt::Key_F2));
+    pricingAction->setCheckable(true);
+    pricingAction->setChecked(true);  // Visible by default
+    connect(pricingAction, &QAction::triggered, this, [this](bool checked) {
+        m_pricingDock->setVisible(checked);
+    });
+    connect(m_pricingDock, &QDockWidget::visibilityChanged, pricingAction, &QAction::setChecked);
+
     viewMenu->addSeparator();
 
     auto* openImagesFolderAction = viewMenu->addAction("Ouvrir dossier &Images");
@@ -386,46 +521,23 @@ void MainWindow::setupMenus() {
     auto* openAudioFolderAction = viewMenu->addAction("Ouvrir dossier &Audio");
     connect(openAudioFolderAction, &QAction::triggered, this, &MainWindow::onOpenAudioFolder);
 
+    viewMenu->addSeparator();
+
+    // Remember text option
+    auto* rememberTextAction = viewMenu->addAction("&Garder texte a la fermeture");
+    rememberTextAction->setCheckable(true);
+    rememberTextAction->setChecked(codex::utils::Config::instance().rememberText());
+    connect(rememberTextAction, &QAction::triggered, this, [](bool checked) {
+        codex::utils::Config::instance().setRememberText(checked);
+    });
+
     // Help menu
     auto* helpMenu = menuBar()->addMenu("&Aide");
 
     auto* aboutAction = helpMenu->addAction("À &propos...");
     connect(aboutAction, &QAction::triggered, this, &MainWindow::onShowAbout);
 
-    // Generation menu (after Help)
-    auto* genMenu = menuBar()->addMenu("&Génération");
-
-    auto* genImageAction = genMenu->addAction("Générer &Image");
-    genImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
-    connect(genImageAction, &QAction::triggered, this, [this]() {
-        if (!m_selectedPassage.isEmpty()) {
-            onGenerateImageFromPreview(m_selectedPassage);
-        }
-    });
-
-    auto* genAudioAction = genMenu->addAction("Générer &Audio");
-    genAudioAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
-    connect(genAudioAction, &QAction::triggered, this, [this]() {
-        if (!m_selectedPassage.isEmpty()) {
-            onGenerateAudioFromPreview(m_selectedPassage);
-        }
-    });
-
-    auto* genVideoAction = genMenu->addAction("Générer &Vidéo");
-    genVideoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
-    connect(genVideoAction, &QAction::triggered, this, [this]() {
-        if (!m_selectedPassage.isEmpty()) {
-            onGenerateVideoFromPreview(m_selectedPassage);
-        }
-    });
-
-    genMenu->addSeparator();
-
-    auto* genAllAction = genMenu->addAction("Générer &Tout + Diaporama");
-    genAllAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_G));
-    connect(genAllAction, &QAction::triggered, this, &MainWindow::onGenerateAllAndSlideshow);
-
-    // Planche menu (separate top-level menu)
+    // Planche menu
     auto* plateMenu = menuBar()->addMenu("&Planche");
 
     auto* plate2x2 = plateMenu->addAction("2x2 (4 images)");
@@ -461,6 +573,33 @@ void MainWindow::setupMenus() {
     auto* plate5x6 = plateMenu->addAction("5x6 (30 images)");
     connect(plate5x6, &QAction::triggered, this, [this]() {
         onGeneratePlateFromPreview(m_selectedPassage, 5, 6);
+    });
+
+    // Generation menu (after Planche)
+    auto* genMenu = menuBar()->addMenu("&Génération");
+
+    auto* genImageAction = genMenu->addAction("Générer &Image");
+    genImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_I));
+    connect(genImageAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateImageFromPreview(m_selectedPassage);
+        }
+    });
+
+    auto* genAudioAction = genMenu->addAction("Générer &Audio");
+    genAudioAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_U));
+    connect(genAudioAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateAudioFromPreview(m_selectedPassage);
+        }
+    });
+
+    auto* genVideoAction = genMenu->addAction("Générer &Vidéo");
+    genVideoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_V));
+    connect(genVideoAction, &QAction::triggered, this, [this]() {
+        if (!m_selectedPassage.isEmpty()) {
+            onGenerateVideoFromPreview(m_selectedPassage);
+        }
     });
 }
 
@@ -545,6 +684,9 @@ void MainWindow::loadCodexAndRefreshUI(const QString& filePath) {
                              .arg(treatises.size())
                              .arg(m_textParser->pageCount()));
 
+    // Update MediaStorage base path to project root
+    codex::utils::MediaStorage::instance().updateBasePath();
+
     LOG_INFO(QString("Loaded Codex: %1").arg(filePath));
 }
 
@@ -587,6 +729,8 @@ void MainWindow::onShowAbout() {
 
 void MainWindow::onPassageSelected(const QString& text, int start, int end) {
     m_selectedPassage = text;
+    m_selectionStart = start;
+    m_selectionEnd = end;
     m_passagePreview->setPassage(text, start, end);
     statusBar()->showMessage(QString("Passage selectionne: %1 caracteres").arg(text.length()));
 }
@@ -673,11 +817,17 @@ void MainWindow::onGenerateAudioFromPreview(const QString& passage) {
         return;
     }
 
+    // Nettoyer le texte pour la narration
+    codex::core::NarrationCleaner cleaner;
+    QString cleanedPassage = cleaner.clean(passage);
+
+    LOG_INFO(QString("Narration text cleaned: %1 -> %2 chars")
+             .arg(passage.length()).arg(cleanedPassage.length()));
+
     auto& config = codex::utils::Config::instance();
     QString ttsProvider = config.ttsProvider();
 
     statusBar()->showMessage("Generation audio en cours...");
-    m_audioPlayer->stop();
 
     if (ttsProvider == "edge") {
         // Use Microsoft Edge Neural TTS (free, high quality)
@@ -687,10 +837,10 @@ void MainWindow::onGenerateAudioFromPreview(const QString& passage) {
         edgeSettings.pitch = 0;      // Normal pitch
         edgeSettings.volume = 100;   // Full volume
 
-        m_edgeTTSClient->generateSpeech(passage, edgeSettings);
+        m_edgeTTSClient->generateSpeech(cleanedPassage, edgeSettings);
 
         LOG_INFO(QString("Edge TTS generation started for passage: %1 chars, voice: %2")
-                 .arg(passage.length()).arg(edgeSettings.voiceId));
+                 .arg(cleanedPassage.length()).arg(edgeSettings.voiceId));
     } else {
         // Use ElevenLabs (premium)
         QString apiKey = codex::utils::SecureStorage::instance().getApiKey(
@@ -712,10 +862,10 @@ void MainWindow::onGenerateAudioFromPreview(const QString& passage) {
         voiceSettings.similarityBoost = 0.75;
         voiceSettings.speed = 0.85;
 
-        m_elevenLabsClient->generateSpeech(passage, voiceSettings);
+        m_elevenLabsClient->generateSpeech(cleanedPassage, voiceSettings);
 
         LOG_INFO(QString("ElevenLabs generation started for passage: %1 chars, voice: %2")
-                 .arg(passage.length()).arg(voiceSettings.voiceId));
+                 .arg(cleanedPassage.length()).arg(voiceSettings.voiceId));
     }
 }
 
@@ -730,8 +880,6 @@ void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
         return;
     }
 
-    m_audioPlayer->loadFromData(audioData);
-
     int seconds = durationMs / 1000;
     statusBar()->showMessage(QString("Audio genere avec succes! Duree: %1:%2")
                              .arg(seconds / 60, 2, 10, QChar('0'))
@@ -743,9 +891,8 @@ void MainWindow::onAudioGenerated(const QByteArray& audioData, int durationMs) {
         m_progressBar->setValue(100);
         m_progressBar->setFormat("Termine!");
         onFullGenerationCompleted();
-    } else {
-        m_audioPlayer->play();
     }
+    // Audio playback moved to slideshow dialog
 }
 
 void MainWindow::onAudioError(const QString& error) {
@@ -773,9 +920,6 @@ void MainWindow::onEdgeAudioGenerated(const QByteArray& audioData, int durationM
         return;
     }
 
-    // Load and play the MP3 audio data
-    m_audioPlayer->loadFromData(audioData);
-
     int seconds = durationMs / 1000;
     statusBar()->showMessage(QString("Audio genere! Duree: %1:%2 | Taille: %3 KB")
                              .arg(seconds / 60, 2, 10, QChar('0'))
@@ -789,9 +933,8 @@ void MainWindow::onEdgeAudioGenerated(const QByteArray& audioData, int durationM
         m_progressBar->setValue(100);
         m_progressBar->setFormat("Termine!");
         onFullGenerationCompleted();
-    } else {
-        m_audioPlayer->play();
     }
+    // Audio playback moved to slideshow dialog
 }
 
 void MainWindow::onEdgeAudioError(const QString& error) {
@@ -894,10 +1037,27 @@ void MainWindow::onPipelineStateChanged(codex::core::PipelineState state, const 
 }
 
 void MainWindow::onPipelineProgress(int percent, const QString& step) {
-    statusBar()->showMessage(QString("%1 (%2%)").arg(step).arg(percent));
+    // Update progress bar for plate generation mode
+    if (m_plateGenerating && m_plateTextSegments.size() > 0) {
+        // Calculate fine progress: current image + progress within that image
+        int totalImages = m_plateTextSegments.size();
+        int completedImages = m_plateNextIndex;
 
+        // Each image contributes (100 / totalImages) to total progress
+        // Current image progress adds partial contribution
+        int basePercent = (completedImages * 100) / totalImages;
+        int totalPercent = basePercent + (percent / totalImages);
+
+        m_progressBar->setValue(totalPercent * totalImages / 100);  // Scale to range
+
+        // Update button text with fine progress
+        m_genAllBtn->setText(QString("Pause (%1%)").arg(totalPercent));
+
+        statusBar()->showMessage(QString("Image %1/%2: %3 (%4%)")
+            .arg(completedImages + 1).arg(totalImages).arg(step).arg(percent));
+    }
     // Update progress bar if in full generation mode
-    if (m_fullGenerating) {
+    else if (m_fullGenerating) {
         // Steps: 0-33% = prompt, 33-66% = image, 66-100% = audio
         if (step.contains("prompt", Qt::CaseInsensitive)) {
             m_progressBar->setValue(percent / 3);
@@ -906,16 +1066,14 @@ void MainWindow::onPipelineProgress(int percent, const QString& step) {
             m_progressBar->setValue(33 + percent / 3);
             m_progressBar->setFormat(QString("Etape 2/3: Image... %1%").arg(percent));
         }
+        statusBar()->showMessage(QString("%1 (%2%)").arg(step).arg(percent));
+    }
+    else {
+        statusBar()->showMessage(QString("%1 (%2%)").arg(step).arg(percent));
     }
 }
 
 void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt) {
-    // If slideshow is using the pipeline, ignore this signal
-    if (m_slideshowActive) {
-        LOG_INFO("MainWindow ignoring pipeline completion (slideshow active)");
-        return;
-    }
-
     // Store the prompt and display it in the prompt tab
     if (!prompt.isEmpty()) {
         m_generatedPrompt = prompt;
@@ -931,8 +1089,48 @@ void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt
         LOG_INFO(QString("Plate image %1 completed, size: %2x%3")
                  .arg(m_plateNextIndex + 1).arg(image.width()).arg(image.height()));
 
+        // Auto-save image to MediaStorage
+        codex::utils::MediaStorage::instance().saveImage(image, m_plateNextIndex, segmentText);
+
+        // Open slideshow on first image if requested
+        if (m_plateNextIndex == 0 && m_openSlideshowOnFirstImage && !m_activeSlideshowDialog) {
+            m_openSlideshowOnFirstImage = false;  // Only open once
+
+            SlideshowDialog* dialog = new SlideshowDialog(this);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            m_activeSlideshowDialog = dialog;
+
+            connect(dialog, &QObject::destroyed, this, [this]() {
+                m_activeSlideshowDialog = nullptr;
+                LOG_INFO("Slideshow closed");
+            });
+
+            dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, m_plateCols, m_plateRows);
+            dialog->prepareSlideshow();
+
+            // Show the slideshow dialog maximized
+            dialog->show();
+            dialog->setWindowState(Qt::WindowMaximized);
+            dialog->raise();
+            dialog->activateWindow();
+
+            statusBar()->showMessage("Diaporama ouvert - generation en cours...");
+            LOG_INFO("Slideshow opened on first image");
+        }
+
+        // Send image to active slideshow dialog if one exists
+        if (m_activeSlideshowDialog) {
+            m_activeSlideshowDialog->addImage(image, segmentText, m_plateNextIndex);
+            LOG_INFO(QString("Sent image %1 to slideshow").arg(m_plateNextIndex));
+        }
+
         // Move to next image
         m_plateNextIndex++;
+
+        // Update progress bar and button text
+        m_progressBar->setValue(m_plateNextIndex);
+        int percent = (m_plateNextIndex * 100) / m_plateTextSegments.size();
+        m_genAllBtn->setText(QString("Pause (%1%)").arg(percent));
 
         // Generate next image after a small delay to avoid overwhelming the API
         QTimer::singleShot(500, this, &MainWindow::generateNextPlateImage);
@@ -961,18 +1159,15 @@ void MainWindow::onPipelineCompleted(const QPixmap& image, const QString& prompt
 }
 
 void MainWindow::onPipelineFailed(const QString& error) {
-    // If slideshow is using the pipeline, ignore this signal
-    if (m_slideshowActive) {
-        LOG_INFO("MainWindow ignoring pipeline failure (slideshow active)");
-        return;
-    }
-
     LOG_ERROR(QString("Pipeline failed: %1").arg(error));
 
     if (m_plateGenerating && m_plateNextIndex < m_plateTextSegments.size()) {
         // In plate mode - skip this image and continue
         statusBar()->showMessage(QString("Image %1 echouee, passage a la suivante...")
                                  .arg(m_plateNextIndex + 1));
+
+        // Notify slideshow of failure (it will handle placeholder)
+        // Note: slideshow will just not receive this image
 
         m_plateNextIndex++;
         QTimer::singleShot(500, this, &MainWindow::generateNextPlateImage);
@@ -1030,68 +1225,218 @@ void MainWindow::onStartSlideshow() {
         return;
     }
 
-    // Cancel any ongoing generation to free the pipeline for the slideshow
-    if (m_pipelineController->isRunning()) {
-        m_pipelineController->cancel();
-        LOG_INFO("Cancelled ongoing generation to start slideshow");
+    // Close any existing slideshow dialog
+    if (m_activeSlideshowDialog) {
+        m_activeSlideshowDialog->close();
+        m_activeSlideshowDialog = nullptr;
     }
-    m_plateGenerating = false;
 
-    // Mark slideshow as active so MainWindow ignores pipeline signals
-    m_slideshowActive = true;
-
-    // Create and show the slideshow dialog with shared PipelineController
-    SlideshowDialog* dialog = new SlideshowDialog(m_pipelineController, this);
+    // Create the slideshow dialog (no PipelineController - it receives images from MainWindow)
+    SlideshowDialog* dialog = new SlideshowDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    m_activeSlideshowDialog = dialog;
 
-    // When dialog is destroyed, reset the slideshow flag
+    // When dialog is destroyed, clear the pointer
     connect(dialog, &QObject::destroyed, this, [this]() {
-        m_slideshowActive = false;
-        LOG_INFO("Slideshow closed, MainWindow resuming pipeline handling");
+        m_activeSlideshowDialog = nullptr;
+        LOG_INFO("Slideshow closed");
     });
 
-    // Set the content with selected text and current treatise info
-    dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, 2, 2);
+    // Use grid dimensions from ImageViewer if available, otherwise default to 2x2
+    int cols = m_imageViewer->gridCols() > 0 ? m_imageViewer->gridCols() : (m_plateCols > 0 ? m_plateCols : 2);
+    int rows = m_imageViewer->gridRows() > 0 ? m_imageViewer->gridRows() : (m_plateRows > 0 ? m_plateRows : 2);
 
+    dialog->setContent(m_selectedPassage, m_currentTreatiseCode, m_currentCategory, cols, rows);
+
+    // Prepare the slideshow (creates placeholder slots for images)
+    dialog->prepareSlideshow();
+
+    // Show the dialog maximized
     dialog->show();
+    dialog->setWindowState(Qt::WindowMaximized);
+    dialog->raise();
+    dialog->activateWindow();
 
-    // Auto-start generation
-    dialog->startGeneration();
+    // Send existing images from ImageViewer grid to slideshow
+    int existingImages = m_imageViewer->gridImageCount();
+    if (existingImages > 0) {
+        LOG_INFO(QString("Sending %1 existing grid images to slideshow").arg(existingImages));
+        for (int i = 0; i < existingImages; ++i) {
+            QPixmap img = m_imageViewer->gridImage(i);
+            QString text = m_imageViewer->gridText(i);
+            if (!img.isNull()) {
+                dialog->addImage(img, text, i);
+                LOG_INFO(QString("Sent existing image %1 to slideshow").arg(i));
+            }
+        }
+
+        // If plate generation is done, notify slideshow
+        if (!m_plateGenerating) {
+            dialog->finishAddingImages();
+            LOG_INFO("Notified slideshow that existing images are complete");
+        }
+    }
 
     statusBar()->showMessage("Diaporama ouvert");
-    LOG_INFO("Slideshow dialog opened, MainWindow pipeline handling suspended");
+    LOG_INFO(QString("Slideshow dialog opened with %1 existing images").arg(existingImages));
+
+    // If no images exist and no generation in progress, start plate generation
+    if (existingImages == 0 && !m_plateGenerating && !m_pipelineController->isRunning()) {
+        LOG_INFO("Starting plate generation for slideshow");
+        statusBar()->showMessage("Diaporama ouvert - generation en cours...");
+        onPlateSizeChanged(cols, rows);
+    } else if (m_plateGenerating) {
+        statusBar()->showMessage("Diaporama ouvert - generation en cours...");
+        LOG_INFO("Plate generation already in progress, slideshow will receive new images");
+    }
 }
 
 void MainWindow::onGenerateAllAndSlideshow() {
+    // If generation is in progress, handle pause/resume
+    if (m_plateGenerating) {
+        int percent = m_plateTextSegments.size() > 0
+            ? (m_plateNextIndex * 100) / m_plateTextSegments.size()
+            : 0;
+
+        if (m_platePaused) {
+            // Resume generation
+            m_platePaused = false;
+            m_genAllBtn->setText(QString("Pause (%1%)").arg(percent));
+            m_genAllBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: #8a6d00;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 5px 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover { background-color: #a88500; }
+                QPushButton:pressed { background-color: #6a5500; }
+            )");
+            statusBar()->showMessage("Generation reprise...");
+            LOG_INFO("Plate generation resumed");
+            // Continue generating
+            generateNextPlateImage();
+        } else {
+            // Pause generation
+            m_platePaused = true;
+            m_genAllBtn->setText(QString("Reprendre (%1%)").arg(percent));
+            m_genAllBtn->setStyleSheet(R"(
+                QPushButton {
+                    background-color: #1e5a1e;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 5px 12px;
+                    font-weight: bold;
+                }
+                QPushButton:hover { background-color: #2d7a2d; }
+                QPushButton:pressed { background-color: #0d3a0d; }
+            )");
+            statusBar()->showMessage(QString("Generation en pause (%1/%2 images)")
+                .arg(m_plateNextIndex).arg(m_plateTextSegments.size()));
+            LOG_INFO(QString("Plate generation paused at %1/%2")
+                .arg(m_plateNextIndex).arg(m_plateTextSegments.size()));
+        }
+        return;
+    }
+
+    // Show session picker dialog
+    SessionPickerDialog picker(this);
+    if (picker.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    // If user chose an existing session, open it directly
+    if (picker.resultType() == SessionPickerDialog::ExistingSession) {
+        auto sessionInfo = picker.selectedSessionInfo();
+        QString sessionPath = picker.selectedSessionPath();
+
+        LOG_INFO(QString("Opening existing session: %1 with %2 images")
+                 .arg(sessionPath).arg(sessionInfo.imageCount));
+
+        // Create slideshow dialog with existing media
+        SlideshowDialog* dialog = new SlideshowDialog(this);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setPipelineController(m_pipelineController);
+
+        // Load images and texts from session
+        auto& storage = codex::utils::MediaStorage::instance();
+        for (int i = 0; i < sessionInfo.imageCount; ++i) {
+            QPixmap image = storage.loadImage(sessionPath, i);
+            QString text = (i < sessionInfo.texts.size()) ? sessionInfo.texts[i] : QString();
+            if (!image.isNull()) {
+                dialog->addSlide(image, text);
+            }
+        }
+
+        dialog->show();
+        dialog->setWindowState(Qt::WindowMaximized);
+
+        // Start auto-play if images loaded
+        if (sessionInfo.imageCount > 0) {
+            QPointer<SlideshowDialog> safeDialog = dialog;
+            QTimer::singleShot(500, this, [safeDialog]() {
+                if (safeDialog) {
+                    safeDialog->startAutoPlay();
+                }
+            });
+        }
+
+        return;
+    }
+
+    // Start new generation
     if (m_selectedPassage.isEmpty()) {
         codex::utils::MessageBox::info(this, "Generation complete",
             "Selectionnez un passage de texte avant de lancer la generation complete.");
         return;
     }
 
-    if (m_fullGenerating) {
-        codex::utils::MessageBox::warning(this, "Generation en cours",
-            "Une generation est deja en cours. Veuillez patienter.");
-        return;
+    // Close any existing slideshow dialog
+    if (m_activeSlideshowDialog) {
+        m_activeSlideshowDialog->close();
+        m_activeSlideshowDialog = nullptr;
     }
 
-    // Start full generation pipeline: prompt -> image -> audio -> slideshow
-    m_fullGenerating = true;
-    m_fullGenStep = 0;
-    m_generatedPrompt.clear();
-    m_lastAudioPath.clear();
+    // Clear existing plate images to start fresh
+    m_imageViewer->clearPlate();
+    m_platePaused = false;
+    m_openSlideshowOnFirstImage = true;  // Open slideshow when first image is ready
 
-    // Show progress bar
-    m_progressBar->show();
+    // Use default plate size (3x3 = 9 images) or last used size
+    int cols = m_plateCols > 0 ? m_plateCols : 3;
+    int rows = m_plateRows > 0 ? m_plateRows : 3;
+
+    // Update button to show "Pause" state with 0%
+    m_genAllBtn->setText("Pause (0%)");
+    m_genAllBtn->setStyleSheet(R"(
+        QPushButton {
+            background-color: #8a6d00;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover { background-color: #a88500; }
+        QPushButton:pressed { background-color: #6a5500; }
+    )");
+
+    // Show progress bar (keep it as backup indicator)
+    m_progressBar->setRange(0, cols * rows);
     m_progressBar->setValue(0);
-    m_progressBar->setFormat("Etape 1/3: Generation du prompt...");
+    m_progressBar->setFormat("Generation: %v/%m images");
+    m_progressBar->show();
 
-    statusBar()->showMessage("Generation complete: creation du prompt...");
-    LOG_INFO("Starting full generation pipeline");
+    statusBar()->showMessage("Generation en cours... Le diaporama s'ouvrira a la 1ere image.");
+    LOG_INFO(QString("Starting plate generation %1x%2, slideshow will open on first image").arg(cols).arg(rows));
 
-    // Step 1: Generate prompt (this triggers the pipeline which generates prompt then image)
-    m_imageViewer->showLoading();
-    m_pipelineController->startGeneration(m_selectedPassage, m_currentTreatiseCode, m_currentCategory);
+    // Start plate generation - slideshow will open when first image is ready
+    QTimer::singleShot(100, this, [this, cols, rows]() {
+        onGeneratePlateFromPreview(m_selectedPassage, cols, rows);
+    });
 }
 
 void MainWindow::onFullGenerationCompleted() {
@@ -1346,6 +1691,11 @@ void MainWindow::onGeneratePlateFromPreview(const QString& passage, int cols, in
     m_plateNextIndex = 0;
     m_plateGenerating = true;
 
+    // Create a new session in MediaStorage for auto-saving
+    // Note: MediaStorage uses the codex file's parent directory as base path
+    codex::utils::MediaStorage::instance().updateBasePath();
+    codex::utils::MediaStorage::instance().createSession(m_currentTreatiseCode);
+
     // Start the grid display
     m_imageViewer->startPlateGrid(cols, rows);
 
@@ -1431,13 +1781,50 @@ QStringList MainWindow::splitTextForPlate(const QString& text, int count) {
 }
 
 void MainWindow::generateNextPlateImage() {
+    // Check if paused - don't continue generating
+    if (m_platePaused) {
+        LOG_INFO("Plate generation paused, waiting for resume");
+        return;
+    }
+
     if (!m_plateGenerating || m_plateNextIndex >= m_plateTextSegments.size()) {
         // All done
         m_plateGenerating = false;
+        m_platePaused = false;
         m_imageViewer->finishPlateGrid();
-        statusBar()->showMessage(QString("Planche %1x%2 terminee!")
-                                 .arg(m_plateCols).arg(m_plateRows));
+        statusBar()->showMessage(QString("Planche %1x%2 terminee! Images sauvegardees dans %3")
+                                 .arg(m_plateCols).arg(m_plateRows)
+                                 .arg(codex::utils::MediaStorage::instance().currentSessionPath()));
         LOG_INFO("Plate generation completed");
+
+        // Reset button to initial state
+        m_genAllBtn->setText("Generer Tout + Diapo");
+        m_genAllBtn->setStyleSheet(R"(
+            QPushButton {
+                background-color: #1e5a1e;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #2d7a2d; }
+            QPushButton:pressed { background-color: #0d3a0d; }
+        )");
+
+        // Hide progress bar
+        m_progressBar->hide();
+
+        // Save session metadata
+        codex::utils::MediaStorage::instance().saveSessionMetadata(
+            m_currentTreatiseCode, m_currentCategory,
+            m_plateTextSegments.size(), m_plateTextSegments);
+
+        // Notify slideshow that all images have been sent
+        if (m_activeSlideshowDialog) {
+            m_activeSlideshowDialog->finishAddingImages();
+            LOG_INFO("Notified slideshow that all images are done");
+        }
         return;
     }
 

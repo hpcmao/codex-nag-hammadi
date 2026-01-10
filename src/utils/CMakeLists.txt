@@ -3,8 +3,10 @@
 add_library(codex_utils STATIC
     Config.cpp
     Logger.cpp
+    MediaStorage.cpp
     SecureStorage.cpp
     ThemeManager.cpp
+    ApiPricingManager.cpp
 )
 
 target_include_directories(codex_utils PUBLIC

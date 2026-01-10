@@ -9,9 +9,12 @@ add_library(codex_ui STATIC
     widgets/AudioPlayerWidget.cpp
     widgets/SlideshowWidget.cpp
     widgets/InfoDockWidget.cpp
+    widgets/ApiPricingDockWidget.cpp
     dialogs/SettingsDialog.cpp
     dialogs/ProjectDialog.cpp
     dialogs/SlideshowDialog.cpp
+    dialogs/SessionPickerDialog.cpp
+    dialogs/VideoPreviewDialog.cpp
 )
 
 target_include_directories(codex_ui PUBLIC
@@ -27,4 +30,5 @@ target_link_libraries(codex_ui PUBLIC
     Qt6::Core
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::MultimediaWidgets
 )

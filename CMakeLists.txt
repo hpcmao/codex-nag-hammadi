@@ -31,6 +31,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     Network
     Sql
     Multimedia
+    MultimediaWidgets
 )
 
 # Find nlohmann/json (optional - can be header-only)

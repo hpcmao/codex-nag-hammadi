@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QLineEdit>
 #include <QProgressBar>
+#include <QPushButton>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <memory>
@@ -28,9 +29,10 @@ class TextViewerWidget;
 class ImageViewerWidget;
 class TreatiseListWidget;
 class PassagePreviewWidget;
-class AudioPlayerWidget;
 class SlideshowWidget;
+class SlideshowDialog;
 class InfoDockWidget;
+class ApiPricingDockWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -38,6 +40,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void onNewProject();
@@ -88,7 +93,6 @@ private:
     TextViewerWidget* m_textViewer = nullptr;
     ImageViewerWidget* m_imageViewer = nullptr;
     PassagePreviewWidget* m_passagePreview = nullptr;
-    AudioPlayerWidget* m_audioPlayer = nullptr;
 
     codex::core::TextParser* m_textParser = nullptr;
     codex::core::PipelineController* m_pipelineController = nullptr;
@@ -97,6 +101,7 @@ private:
     codex::api::VeoClient* m_veoClient = nullptr;
     SlideshowWidget* m_slideshowWidget = nullptr;
     InfoDockWidget* m_infoDock = nullptr;
+    ApiPricingDockWidget* m_pricingDock = nullptr;
 
     // Project management
     codex::db::Project m_currentProject;
@@ -106,6 +111,8 @@ private:
     QString m_selectedPassage;
     QString m_currentTreatiseCode;
     QString m_currentCategory;
+    int m_selectionStart = -1;
+    int m_selectionEnd = -1;
 
     // Plate generation state
     QStringList m_plateTextSegments;
@@ -113,12 +120,15 @@ private:
     int m_plateCols = 0;
     int m_plateRows = 0;
     bool m_plateGenerating = false;
+    bool m_platePaused = false;
+    bool m_openSlideshowOnFirstImage = false;
 
-    // Slideshow state - when true, pipeline signals are handled by SlideshowDialog
-    bool m_slideshowActive = false;
+    // Slideshow state - active dialog receives images from pipeline
+    SlideshowDialog* m_activeSlideshowDialog = nullptr;
 
     // Quick settings in toolbar
     QComboBox* m_voiceCombo = nullptr;
+    QComboBox* m_plateSizeCombo = nullptr;
     QLineEdit* m_outputFolderEdit = nullptr;
     QLineEdit* m_videoFolderEdit = nullptr;
 
@@ -128,6 +138,12 @@ private:
 
     // Progress bar for generation
     QProgressBar* m_progressBar = nullptr;
+
+    // Generate All + Slideshow button (to change text during generation)
+    QPushButton* m_genAllBtn = nullptr;
+
+    // Generate Video button
+    QPushButton* m_genVideoBtn = nullptr;
 
     // Full generation state (prompt + image + audio)
     bool m_fullGenerating = false;
