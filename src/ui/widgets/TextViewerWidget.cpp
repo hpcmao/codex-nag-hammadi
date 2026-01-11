@@ -1,6 +1,7 @@
 #include "TextViewerWidget.h"
 #include "utils/Logger.h"
 #include "utils/ThemeManager.h"
+#include "core/services/NarrationCleaner.h"
 
 #include <QVBoxLayout>
 #include <QFile>
@@ -10,6 +11,7 @@
 #include <QScrollBar>
 #include <QTextBlock>
 #include <QPaintEvent>
+#include <QPalette>
 
 namespace codex::ui {
 
@@ -113,6 +115,12 @@ void TextViewerWidget::updateColors() {
     QFont font(theme.fontSettings().textFamily, theme.fontSettings().textSize);
     font.setStyleHint(QFont::Monospace);
     m_textEdit->setFont(font);
+
+    // Selection colors from theme
+    QPalette palette = m_textEdit->palette();
+    palette.setColor(QPalette::Highlight, QColor(colors.selection));
+    palette.setColor(QPalette::HighlightedText, QColor(colors.selectionText));
+    m_textEdit->setPalette(palette);
 }
 
 void TextViewerWidget::onThemeChanged() {
@@ -144,12 +152,17 @@ void TextViewerWidget::setTextWithVerses(const QString& text, int startPage) {
     // Page markers in text: "|" indicates manuscript page change
     // Paragraphs are separated by double newlines or indentation
 
+    // Clean the text first (remove annotations, notes, etc.)
+    codex::core::NarrationCleaner cleaner;
+    cleaner.setRemovePipes(false);  // Keep pipes for page splitting
+    QString cleanedText = cleaner.clean(text);
+
     QString formatted;
     int currentPage = startPage;
     int paragraphNum = 1;
 
     // Split by page markers first (| character)
-    QStringList pages = text.split(QRegularExpression(R"(\s*\|\s*)"));
+    QStringList pages = cleanedText.split(QRegularExpression(R"(\s*\|\s*)"));
 
     for (int pageIdx = 0; pageIdx < pages.size(); ++pageIdx) {
         QString pageContent = pages[pageIdx].trimmed();

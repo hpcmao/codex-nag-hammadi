@@ -33,6 +33,7 @@ signals:
 private slots:
     void onToggleStar();
     void onToggleHeart();
+    void updateFont();
 
 private:
     void setupUi();

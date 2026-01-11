@@ -27,6 +27,8 @@ private slots:
     void onTestElevenLabs();
     void onTestEdgeTTS();
     void onChooseAccentColor();
+    void onChooseSelectionBgColor();
+    void onChooseSelectionTextColor();
 
 private:
     void setupUi();
@@ -52,11 +54,15 @@ private:
     // Appearance tab
     QComboBox* m_themeCombo;
     QPushButton* m_accentColorBtn;
+    QPushButton* m_selectionBgColorBtn;
+    QPushButton* m_selectionTextColorBtn;
     QFontComboBox* m_uiFontCombo;
     QSpinBox* m_uiFontSizeSpin;
     QFontComboBox* m_textFontCombo;
     QSpinBox* m_textFontSizeSpin;
     QString m_currentAccentColor;
+    QString m_currentSelectionBgColor;
+    QString m_currentSelectionTextColor;
 
     // Damier (alternating rows)
     QCheckBox* m_damierEnabledCheck;

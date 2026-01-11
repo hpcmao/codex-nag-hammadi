@@ -86,7 +86,12 @@
       "Bash(port search qt6)",
       "Bash(git log:*)",
       "Bash(grep:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(gh auth status:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: synthèse des fichiers d''état du projet\n\n- Fusion des 4 fichiers d''état en un seul document complet\n- Inclut tout l''historique du port macOS\n- Structure, fonctionnalités et prochaines étapes\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(pkill:*)",
+      "Bash(open:*)"
     ]
   }
 }

@@ -22,13 +22,20 @@ MediaStorage::MediaStorage() {
 }
 
 void MediaStorage::updateBasePath() {
-    // Use the codex file's parent directory as base, or fall back to app data
-    QString codexPath = Config::instance().codexFilePath();
-    if (!codexPath.isEmpty()) {
-        QFileInfo fi(codexPath);
-        m_basePath = fi.absolutePath();
+    // Use configured output path, or codex file's parent directory, or fall back to app data
+    auto& config = Config::instance();
+    QString imagesPath = config.outputImagesPath();
+
+    if (!imagesPath.isEmpty()) {
+        m_basePath = imagesPath;
     } else {
-        m_basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QString codexPath = config.codexFilePath();
+        if (!codexPath.isEmpty()) {
+            QFileInfo fi(codexPath);
+            m_basePath = fi.absolutePath();
+        } else {
+            m_basePath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        }
     }
     ensureDirectories();
 }
@@ -43,6 +50,11 @@ QString MediaStorage::sessionsFolder() const {
 }
 
 QString MediaStorage::videosFolder() const {
+    // Use configured videos path if set, otherwise default to m_basePath/videos
+    QString videosPath = Config::instance().outputVideosPath();
+    if (!videosPath.isEmpty()) {
+        return videosPath;
+    }
     return m_basePath + "/videos";
 }
 

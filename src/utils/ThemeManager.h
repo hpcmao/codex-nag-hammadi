@@ -16,6 +16,7 @@ struct ThemeColors {
     QString accentHover;     // Accent on hover
     QString accentText;      // Text on accent background
     QString selection;       // Text selection background
+    QString selectionText;   // Text color when selected
     QString border;          // Borders and separators
     QString statusBar;       // Status bar background
     QString scrollHandle;    // Scrollbar handle
@@ -51,6 +52,9 @@ public:
     // Accent color
     QString accentColor() const { return m_accentColor; }
     void setAccentColor(const QString& color);
+
+    // Selection colors
+    void setSelectionColors(const QString& bgColor, const QString& textColor);
 
     // Font settings
     FontSettings fontSettings() const { return m_fonts; }

@@ -27,7 +27,8 @@ ThemeColors ThemeManager::darkTheme() {
     colors.accent = "#094771";
     colors.accentHover = "#0a5a8c";
     colors.accentText = "#ffffff";
-    colors.selection = "#264f78";
+    colors.selection = "#000000";       // Noir pour fond de sélection
+    colors.selectionText = "#00ff00";   // Vert pour texte sélectionné
     colors.border = "#3d3d3d";
     colors.statusBar = "#007acc";
     colors.scrollHandle = "#6a6a6a";
@@ -49,7 +50,8 @@ ThemeColors ThemeManager::lightTheme() {
     colors.accent = "#0066cc";
     colors.accentHover = "#0088ff";
     colors.accentText = "#ffffff";
-    colors.selection = "#cce5ff";
+    colors.selection = "#000000";       // Noir pour fond de sélection
+    colors.selectionText = "#00cc00";   // Vert pour texte sélectionné
     colors.border = "#dddddd";
     colors.statusBar = "#0066cc";
     colors.scrollHandle = "#c0c0c0";
@@ -77,6 +79,12 @@ void ThemeManager::setAccentColor(const QString& color) {
     m_accentColor = color;
     applyAccentColor();
     LOG_INFO(QString("Accent color changed to: %1").arg(color));
+}
+
+void ThemeManager::setSelectionColors(const QString& bgColor, const QString& textColor) {
+    m_colors.selection = bgColor;
+    m_colors.selectionText = textColor;
+    LOG_INFO(QString("Selection colors changed: bg=%1, text=%2").arg(bgColor, textColor));
 }
 
 void ThemeManager::applyAccentColor() {
@@ -431,6 +439,12 @@ void ThemeManager::load() {
     m_damier.contrast = config.value("appearance/damier_contrast", 30).toInt();
     applyDamierColors();
 
+    // Load selection colors (with defaults from current theme)
+    QString defaultSelBg = m_colors.selection;
+    QString defaultSelText = m_colors.selectionText;
+    m_colors.selection = config.value("appearance/selection_bg", defaultSelBg).toString();
+    m_colors.selectionText = config.value("appearance/selection_text", defaultSelText).toString();
+
     LOG_INFO(QString("Theme loaded: %1, accent: %2").arg(m_themeName, m_accentColor));
 }
 
@@ -445,6 +459,8 @@ void ThemeManager::save() {
     config.setValue("appearance/text_font_size", m_fonts.textSize);
     config.setValue("appearance/damier_enabled", m_damier.enabled);
     config.setValue("appearance/damier_contrast", m_damier.contrast);
+    config.setValue("appearance/selection_bg", m_colors.selection);
+    config.setValue("appearance/selection_text", m_colors.selectionText);
 
     config.save();
     LOG_INFO("Theme settings saved");

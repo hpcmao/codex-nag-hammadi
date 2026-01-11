@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QColorDialog>
+#include <QDir>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -286,8 +287,11 @@ void SettingsDialog::setupUi() {
     m_outputImagesPathEdit = new QLineEdit(pathsTab);
     auto* browseImagesBtn = new QPushButton("Parcourir...", pathsTab);
     connect(browseImagesBtn, &QPushButton::clicked, this, [this]() {
+        QString startDir = m_outputImagesPathEdit->text();
+        if (startDir.isEmpty()) startDir = QDir::homePath();
         QString path = QFileDialog::getExistingDirectory(
-            this, "Selectionner dossier images"
+            this, "Selectionner dossier images", startDir,
+            QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog
         );
         if (!path.isEmpty()) {
             m_outputImagesPathEdit->setText(path);
@@ -302,8 +306,11 @@ void SettingsDialog::setupUi() {
     m_outputVideosPathEdit = new QLineEdit(pathsTab);
     auto* browseVideosBtn = new QPushButton("Parcourir...", pathsTab);
     connect(browseVideosBtn, &QPushButton::clicked, this, [this]() {
+        QString startDir = m_outputVideosPathEdit->text();
+        if (startDir.isEmpty()) startDir = QDir::homePath();
         QString path = QFileDialog::getExistingDirectory(
-            this, "Selectionner dossier videos"
+            this, "Selectionner dossier videos", startDir,
+            QFileDialog::ShowDirsOnly | QFileDialog::DontUseNativeDialog
         );
         if (!path.isEmpty()) {
             m_outputVideosPathEdit->setText(path);
@@ -340,6 +347,26 @@ void SettingsDialog::setupUi() {
     accentLayout->addWidget(m_accentColorBtn);
     accentLayout->addStretch();
     themeLayout->addRow("Couleur d'accent:", accentLayout);
+
+    // Selection background color
+    auto* selBgLayout = new QHBoxLayout();
+    m_selectionBgColorBtn = new QPushButton(themeGroup);
+    m_selectionBgColorBtn->setMinimumWidth(100);
+    m_selectionBgColorBtn->setMinimumHeight(30);
+    connect(m_selectionBgColorBtn, &QPushButton::clicked, this, &SettingsDialog::onChooseSelectionBgColor);
+    selBgLayout->addWidget(m_selectionBgColorBtn);
+    selBgLayout->addStretch();
+    themeLayout->addRow("Fond selection:", selBgLayout);
+
+    // Selection text color
+    auto* selTextLayout = new QHBoxLayout();
+    m_selectionTextColorBtn = new QPushButton(themeGroup);
+    m_selectionTextColorBtn->setMinimumWidth(100);
+    m_selectionTextColorBtn->setMinimumHeight(30);
+    connect(m_selectionTextColorBtn, &QPushButton::clicked, this, &SettingsDialog::onChooseSelectionTextColor);
+    selTextLayout->addWidget(m_selectionTextColorBtn);
+    selTextLayout->addStretch();
+    themeLayout->addRow("Texte selection:", selTextLayout);
 
     appearanceLayout->addWidget(themeGroup);
 
@@ -496,6 +523,15 @@ void SettingsDialog::loadSettings() {
     m_accentColorBtn->setStyleSheet(
         QString("background-color: %1; border: 1px solid #888;").arg(m_currentAccentColor));
 
+    // Load selection colors
+    auto colors = theme.colors();
+    m_currentSelectionBgColor = colors.selection;
+    m_currentSelectionTextColor = colors.selectionText;
+    m_selectionBgColorBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #888;").arg(m_currentSelectionBgColor));
+    m_selectionTextColorBtn->setStyleSheet(
+        QString("background-color: %1; border: 1px solid #888;").arg(m_currentSelectionTextColor));
+
     auto fonts = theme.fontSettings();
     m_uiFontCombo->setCurrentFont(QFont(fonts.uiFamily));
     m_uiFontSizeSpin->setValue(fonts.uiSize);
@@ -583,6 +619,7 @@ void SettingsDialog::applyAppearance() {
     auto& theme = codex::utils::ThemeManager::instance();
     theme.setTheme(m_themeCombo->currentData().toString());
     theme.setAccentColor(m_currentAccentColor);
+    theme.setSelectionColors(m_currentSelectionBgColor, m_currentSelectionTextColor);
 
     codex::utils::FontSettings fonts;
     fonts.uiFamily = m_uiFontCombo->currentFont().family();
@@ -611,6 +648,24 @@ void SettingsDialog::onChooseAccentColor() {
         m_currentAccentColor = color.name();
         m_accentColorBtn->setStyleSheet(
             QString("background-color: %1; border: 1px solid #888;").arg(m_currentAccentColor));
+    }
+}
+
+void SettingsDialog::onChooseSelectionBgColor() {
+    QColor color = QColorDialog::getColor(QColor(m_currentSelectionBgColor), this, "Choisir fond de selection");
+    if (color.isValid()) {
+        m_currentSelectionBgColor = color.name();
+        m_selectionBgColorBtn->setStyleSheet(
+            QString("background-color: %1; border: 1px solid #888;").arg(m_currentSelectionBgColor));
+    }
+}
+
+void SettingsDialog::onChooseSelectionTextColor() {
+    QColor color = QColorDialog::getColor(QColor(m_currentSelectionTextColor), this, "Choisir couleur texte selection");
+    if (color.isValid()) {
+        m_currentSelectionTextColor = color.name();
+        m_selectionTextColorBtn->setStyleSheet(
+            QString("background-color: %1; border: 1px solid #888;").arg(m_currentSelectionTextColor));
     }
 }
 

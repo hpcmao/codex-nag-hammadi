@@ -1,6 +1,8 @@
 #include "PassagePreviewWidget.h"
 #include "utils/Logger.h"
+#include "utils/ThemeManager.h"
 #include "db/repositories/FavoriteRepository.h"
+#include "core/services/NarrationCleaner.h"
 
 #include <QVBoxLayout>
 #include <QRegularExpression>
@@ -14,6 +16,11 @@ PassagePreviewWidget::PassagePreviewWidget(QWidget* parent)
     : QWidget(parent)
 {
     setupUi();
+    updateFont();
+
+    // Connect to theme changes
+    connect(&codex::utils::ThemeManager::instance(), &codex::utils::ThemeManager::themeChanged,
+            this, &PassagePreviewWidget::updateFont);
 }
 
 void PassagePreviewWidget::setupUi() {
@@ -138,8 +145,12 @@ void PassagePreviewWidget::setPassage(const QString& text, int startPos, int end
     m_startPos = startPos;
     m_endPos = endPos;
 
+    // Clean the text for display (same as narration)
+    codex::core::NarrationCleaner cleaner;
+    QString cleanedText = cleaner.clean(text);
+
     // Display passage (truncate if very long for preview)
-    QString displayText = text;
+    QString displayText = cleanedText;
     if (displayText.length() > 500) {
         displayText = displayText.left(500) + "...";
     }
@@ -182,7 +193,25 @@ void PassagePreviewWidget::updateStats() {
     int charCount = m_passage.length();
     int wordCount = m_passage.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts).count();
 
-    m_statsLabel->setText(QString("%1 caracteres | %2 mots").arg(charCount).arg(wordCount));
+    // Color coding based on word count
+    QString color;
+    QString indicator;
+    if (wordCount < 20) {
+        color = "#888";  // Gris - trop court
+        indicator = "";
+    } else if (wordCount <= 150) {
+        color = "#4CAF50";  // Vert - optimal
+        indicator = " OK";
+    } else if (wordCount <= 300) {
+        color = "#FF9800";  // Orange - acceptable
+        indicator = " +";
+    } else {
+        color = "#F44336";  // Rouge - trop long
+        indicator = " !!";
+    }
+
+    m_statsLabel->setText(QString("%1 caracteres | %2 mots%3").arg(charCount).arg(wordCount).arg(indicator));
+    m_statsLabel->setStyleSheet(QString("color: %1; font-size: 10px; font-weight: bold;").arg(color));
     m_positionLabel->setText(QString("Position: %1-%2").arg(m_startPos).arg(m_endPos));
 }
 
@@ -321,6 +350,12 @@ void PassagePreviewWidget::onToggleHeart() {
     emit favoriteChanged();
 
     LOG_INFO(QString("Heart toggled for passage in %1").arg(m_treatiseCode));
+}
+
+void PassagePreviewWidget::updateFont() {
+    auto& theme = codex::utils::ThemeManager::instance();
+    QFont font(theme.fontSettings().textFamily, theme.fontSettings().textSize);
+    m_previewEdit->setFont(font);
 }
 
 } // namespace codex::ui
