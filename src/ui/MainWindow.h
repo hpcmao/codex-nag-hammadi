@@ -43,6 +43,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private slots:
     void onNewProject();
@@ -102,6 +103,7 @@ private:
     SlideshowWidget* m_slideshowWidget = nullptr;
     InfoDockWidget* m_infoDock = nullptr;
     ApiPricingDockWidget* m_pricingDock = nullptr;
+    QDockWidget* m_textDock = nullptr;  // Dock for text viewer + passage/prompt tabs
 
     // Project management
     codex::db::Project m_currentProject;

@@ -32,6 +32,9 @@
 #include <QMenu>
 #include <QAction>
 #include <QSplitter>
+#include <QDockWidget>
+#include <QVBoxLayout>
+#include <QSettings>
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QFile>
@@ -45,6 +48,7 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QCloseEvent>
+#include <QMouseEvent>
 
 namespace codex::ui {
 
@@ -144,6 +148,17 @@ MainWindow::MainWindow(QWidget* parent)
         }
     });
 
+    // Restore window geometry and dock state
+    QSettings settings("CodexNagHammadi", "MainWindow");
+    if (settings.contains("geometry")) {
+        restoreGeometry(settings.value("geometry").toByteArray());
+        LOG_INFO("Restored window geometry");
+    }
+    if (settings.contains("windowState")) {
+        restoreState(settings.value("windowState").toByteArray());
+        LOG_INFO("Restored dock state");
+    }
+
     LOG_INFO("MainWindow initialized");
 }
 
@@ -162,7 +177,32 @@ void MainWindow::closeEvent(QCloseEvent* event) {
                  .arg(m_selectedPassage.length()).arg(m_selectionStart).arg(m_selectionEnd));
     }
 
+    // Save window geometry and dock state
+    QSettings settings("CodexNagHammadi", "MainWindow");
+    settings.setValue("geometry", saveGeometry());
+    settings.setValue("windowState", saveState());
+    LOG_INFO("Saved window geometry and dock state");
+
     QMainWindow::closeEvent(event);
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    // Double-click on dock title bar to maximize/restore
+    if (event->type() == QEvent::MouseButtonDblClick) {
+        QDockWidget* dock = qobject_cast<QDockWidget*>(watched);
+        if (dock) {
+            if (dock->isFloating()) {
+                // Toggle maximized state for floating dock
+                if (dock->isMaximized()) {
+                    dock->showNormal();
+                } else {
+                    dock->showMaximized();
+                }
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::setupUi() {
@@ -175,17 +215,37 @@ void MainWindow::setupUi() {
     m_treatiseList->setMaximumWidth(400);
     mainSplitter->addWidget(m_treatiseList);
 
-    // Right splitter for text and image/audio
-    auto* rightSplitter = new QSplitter(Qt::Horizontal, this);
+    // Image viewer (right side of main splitter)
+    m_imageViewer = new ImageViewerWidget(this);
+    mainSplitter->addWidget(m_imageViewer);
+
+    // Set main splitter sizes (300px list, rest for image)
+    mainSplitter->setSizes({300, 900});
+
+    setCentralWidget(mainSplitter);
+
+    // === Text Dock Widget (ancrable/détachable) ===
+    m_textDock = new QDockWidget("Texte du Codex", this);
+    m_textDock->setObjectName("TextDock");
+    m_textDock->setAllowedAreas(Qt::AllDockWidgetAreas);
+    m_textDock->setFeatures(QDockWidget::DockWidgetMovable |
+                            QDockWidget::DockWidgetFloatable |
+                            QDockWidget::DockWidgetClosable);
+
+    // Container widget for the dock
+    auto* dockContainer = new QWidget(this);
+    auto* dockLayout = new QVBoxLayout(dockContainer);
+    dockLayout->setContentsMargins(0, 0, 0, 0);
+    dockLayout->setSpacing(0);
 
     // Center vertical splitter for text viewer + tabs
-    auto* centerSplitter = new QSplitter(Qt::Vertical, this);
+    auto* centerSplitter = new QSplitter(Qt::Vertical, dockContainer);
 
-    // Text viewer (top center)
+    // Text viewer (top)
     m_textViewer = new TextViewerWidget(this);
     centerSplitter->addWidget(m_textViewer);
 
-    // Tab widget for passage and prompt (middle center)
+    // Tab widget for passage and prompt (bottom)
     m_centerTabWidget = new QTabWidget(this);
     m_centerTabWidget->setStyleSheet(R"(
         QTabWidget::pane {
@@ -233,22 +293,15 @@ void MainWindow::setupUi() {
     // Set center splitter sizes (text takes most space, tabs smaller)
     centerSplitter->setSizes({450, 200});
 
-    rightSplitter->addWidget(centerSplitter);
+    dockLayout->addWidget(centerSplitter);
+    m_textDock->setWidget(dockContainer);
+    m_textDock->setMinimumWidth(400);
 
-    // Right panel: Image viewer + Audio player
-    // Image viewer (full height, no audio player - audio is in slideshow)
-    m_imageViewer = new ImageViewerWidget(this);
-    rightSplitter->addWidget(m_imageViewer);
+    // Add dock to left area by default
+    addDockWidget(Qt::LeftDockWidgetArea, m_textDock);
 
-    // Set right splitter sizes (50% text area, 50% image viewer)
-    rightSplitter->setSizes({500, 500});
-
-    mainSplitter->addWidget(rightSplitter);
-
-    // Set main splitter sizes (300px list, rest for content)
-    mainSplitter->setSizes({300, 900});
-
-    setCentralWidget(mainSplitter);
+    // Install event filter for double-click to maximize
+    m_textDock->installEventFilter(this);
 
     // Info dock widget (API pricing/quotas)
     m_infoDock = new InfoDockWidget(this);
@@ -492,6 +545,18 @@ void MainWindow::setupMenus() {
 
     // View menu
     auto* viewMenu = menuBar()->addMenu("&Affichage");
+
+    // Text dock toggle
+    auto* textDockAction = viewMenu->addAction("&Texte du Codex");
+    textDockAction->setShortcut(QKeySequence(Qt::Key_F3));
+    textDockAction->setCheckable(true);
+    textDockAction->setChecked(true);  // Visible by default
+    connect(textDockAction, &QAction::triggered, this, [this](bool checked) {
+        m_textDock->setVisible(checked);
+    });
+    connect(m_textDock, &QDockWidget::visibilityChanged, textDockAction, &QAction::setChecked);
+
+    viewMenu->addSeparator();
 
     auto* infoAction = viewMenu->addAction("&Informations API...");
     infoAction->setShortcut(QKeySequence(Qt::Key_F1));
