@@ -37,6 +37,13 @@ public:
     void setPlateGridImage(int index, const QPixmap& image, const QString& text);
     void finishPlateGrid();
 
+    // Grid accessors
+    int gridCols() const { return m_gridCols; }
+    int gridRows() const { return m_gridRows; }
+    int gridImageCount() const { return m_gridImages.size(); }
+    QPixmap gridImage(int index) const { return (index >= 0 && index < m_gridImages.size()) ? m_gridImages[index] : QPixmap(); }
+    QString gridText(int index) const { return (index >= 0 && index < m_gridTexts.size()) ? m_gridTexts[index] : QString(); }
+
 public slots:
     void zoomIn();
     void zoomOut();

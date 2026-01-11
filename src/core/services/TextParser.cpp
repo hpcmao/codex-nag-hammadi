@@ -187,8 +187,65 @@ QVector<TreatiseInfo> TextParser::parseTableOfContents() {
         m_treatises.last().endPage = m_pages.size() - 1;
     }
 
+    // Si aucun traité trouvé, essayer la détection alternative par titres (NH X, Y)
+    if (m_treatises.isEmpty()) {
+        parseByTitleHeaders();
+    }
+
     LOG_INFO(QString("Parsed %1 treatises from table of contents").arg(m_treatises.size()));
     return m_treatises;
+}
+
+void TextParser::parseByTitleHeaders() {
+    // Détection alternative pour fichiers sans table des matières structurée
+    // Cherche les titres avec format "TITRE (NH X, Y)" ou "<TITRE> (NH X, Y)"
+
+    QRegularExpression titleRegex(
+        R"(^<?([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ][A-ZÀÂÄÉÈÊËÏÎÔÙÛÜÇ'\s\-]+?)>?\s*\(NH\s+([IVX]+),?\s*(\d+)\))",
+        QRegularExpression::MultilineOption
+    );
+
+    QMap<QString, int> treatiseFirstPage;  // code -> première page
+    QMap<QString, QString> treatiseTitles; // code -> titre
+
+    for (int pageIdx = 0; pageIdx < m_pages.size(); ++pageIdx) {
+        QRegularExpressionMatchIterator it = titleRegex.globalMatch(m_pages[pageIdx]);
+        while (it.hasNext()) {
+            QRegularExpressionMatch match = it.next();
+            QString title = match.captured(1).trimmed();
+            QString codex = match.captured(2);
+            QString num = match.captured(3);
+            QString code = codex + "-" + num;
+
+            if (!treatiseFirstPage.contains(code)) {
+                treatiseFirstPage[code] = pageIdx;
+                treatiseTitles[code] = title;
+            }
+        }
+    }
+
+    // Convertir en liste triée par page
+    QList<QPair<int, QString>> sortedTreatises;
+    for (auto it = treatiseFirstPage.begin(); it != treatiseFirstPage.end(); ++it) {
+        sortedTreatises.append({it.value(), it.key()});
+    }
+    std::sort(sortedTreatises.begin(), sortedTreatises.end());
+
+    // Créer les TreatiseInfo
+    for (int i = 0; i < sortedTreatises.size(); ++i) {
+        TreatiseInfo info;
+        info.code = sortedTreatises[i].second;
+        info.title = treatiseTitles[info.code];
+        info.startPage = sortedTreatises[i].first;
+        info.endPage = (i + 1 < sortedTreatises.size())
+                       ? sortedTreatises[i + 1].first - 1
+                       : m_pages.size() - 1;
+        m_treatises.append(info);
+    }
+
+    if (!m_treatises.isEmpty()) {
+        LOG_INFO(QString("Alternative parsing: found %1 treatises by title headers").arg(m_treatises.size()));
+    }
 }
 
 QString TextParser::normalizeCode(const QString& code) const {

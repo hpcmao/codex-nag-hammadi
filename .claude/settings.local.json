@@ -80,7 +80,13 @@
       "Bash(cmd /c \"start \"\" \"\"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\build\\\\bin\\\\Release\\\\codex-nag-hammadi.exe\"\"\")",
       "Bash(cmd /c \"start \"\"\"\" \"\"C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi\\\\build\\\\bin\\\\Release\\\\codex-nag-hammadi.exe\"\"\")",
       "Bash(cmd /c \"cd /d C:\\\\Users\\\\hpcmao\\\\Documents\\\\_Programmation\\\\_codex-nag-hammadi && cmake --build build --config Release\")",
-      "Bash(cmd /c \"cmake --build build --config Release\")"
+      "Bash(cmd /c \"cmake --build build --config Release\")",
+      "Bash(brew --prefix:*)",
+      "Bash(ffmpeg:*)",
+      "Bash(port search qt6)",
+      "Bash(git log:*)",
+      "Bash(grep:*)",
+      "Bash(chmod:*)"
     ]
   }
 }

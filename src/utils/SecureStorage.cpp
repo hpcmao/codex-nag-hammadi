@@ -127,8 +127,10 @@ bool SecureStorage::load() {
 
 #ifdef Q_OS_WIN
     QByteArray decrypted = decryptWindows(encryptedData);
-#else
+#elif !defined(Q_OS_MACOS)
     QByteArray decrypted = decryptLinux(encryptedData);
+#else
+    QByteArray decrypted; // macOS uses Keychain, should not reach here
 #endif
 
     if (decrypted.isEmpty()) {
@@ -167,8 +169,10 @@ bool SecureStorage::save() {
 
 #ifdef Q_OS_WIN
     QByteArray encrypted = encryptWindows(jsonData);
-#else
+#elif !defined(Q_OS_MACOS)
     QByteArray encrypted = encryptLinux(jsonData);
+#else
+    QByteArray encrypted; // macOS uses Keychain, should not reach here
 #endif
 
     if (encrypted.isEmpty()) {

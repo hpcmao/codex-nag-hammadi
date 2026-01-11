@@ -4,6 +4,7 @@ add_library(codex_core STATIC
     services/TextParser.cpp
     services/PromptBuilder.cpp
     services/MythicClassifier.cpp
+    services/NarrationCleaner.cpp
     entities/GnosticEntities.cpp
     controllers/PipelineController.cpp
 )

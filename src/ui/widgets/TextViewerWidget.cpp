@@ -203,4 +203,12 @@ void TextViewerWidget::onSelectionChanged() {
     }
 }
 
+void TextViewerWidget::selectRange(int start, int end) {
+    QTextCursor cursor = m_textEdit->textCursor();
+    cursor.setPosition(start);
+    cursor.setPosition(end, QTextCursor::KeepAnchor);
+    m_textEdit->setTextCursor(cursor);
+    m_textEdit->ensureCursorVisible();
+}
+
 } // namespace codex::ui

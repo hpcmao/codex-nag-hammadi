@@ -279,4 +279,19 @@ void TreatiseListWidget::clear() {
     m_treatises.clear();
 }
 
+void TreatiseListWidget::selectTreatiseByCode(const QString& code) {
+    // Search through all items to find the one with matching code
+    for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* codexItem = m_treeWidget->topLevelItem(i);
+        for (int j = 0; j < codexItem->childCount(); ++j) {
+            QTreeWidgetItem* treatiseItem = codexItem->child(j);
+            if (treatiseItem->data(0, Qt::UserRole).toString() == code) {
+                m_treeWidget->setCurrentItem(treatiseItem);
+                m_treeWidget->scrollToItem(treatiseItem);
+                return;
+            }
+        }
+    }
+}
+
 } // namespace codex::ui

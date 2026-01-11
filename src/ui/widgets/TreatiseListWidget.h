@@ -25,6 +25,9 @@ public:
     // Get currently selected treatise code
     QString selectedTreatiseCode() const;
 
+    // Select treatise by code
+    void selectTreatiseByCode(const QString& code);
+
     // Clear the list
     void clear();
 

@@ -69,6 +69,7 @@ private:
     void loadEntityKeywords();
     void parsePages();
     void detectPageOffset();
+    void parseByTitleHeaders();  // Détection alternative par titres (NH X, Y)
     QString normalizeCode(const QString& code) const;
 
     QString m_rawContent;

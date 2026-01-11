@@ -172,7 +172,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
     if (config.rememberText()) {
         config.setLastText(m_selectedPassage);
         config.setLastTreatiseCode(m_currentTreatiseCode);
-        config.setLastSelection(m_selectionStart, m_selectionEnd);
+        config.setLastSelectionStart(m_selectionStart);
+        config.setLastSelectionEnd(m_selectionEnd);
         LOG_INFO(QString("Saved text (%1 chars) and selection [%2-%3] for next session")
                  .arg(m_selectedPassage.length()).arg(m_selectionStart).arg(m_selectionEnd));
     }
@@ -541,6 +542,8 @@ void MainWindow::setupMenus() {
     auto* editMenu = menuBar()->addMenu("&Édition");
 
     auto* settingsAction = editMenu->addAction("&Paramètres...");
+    settingsAction->setShortcut(QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_Slash));  // Cmd+? sur macOS
+    settingsAction->setMenuRole(QAction::PreferencesRole);   // Place dans menu app sur macOS
     connect(settingsAction, &QAction::triggered, this, &MainWindow::onShowSettings);
 
     // View menu
@@ -716,11 +719,22 @@ void MainWindow::setupConnections() {
 }
 
 void MainWindow::onOpenFile() {
+    // Utiliser le dossier du dernier fichier ouvert, ou le dossier de l'application
+    QString startDir;
+    QString lastFile = codex::utils::Config::instance().codexFilePath();
+    if (!lastFile.isEmpty()) {
+        startDir = QFileInfo(lastFile).absolutePath();
+    } else {
+        startDir = QCoreApplication::applicationDirPath() + "/../../..";
+    }
+
     QString filePath = QFileDialog::getOpenFileName(
         this,
         "Ouvrir fichier Codex",
-        QString(),
-        "Markdown (*.md);;Tous les fichiers (*.*)"
+        startDir,
+        "Markdown (*.md);;Tous les fichiers (*.*)",
+        nullptr,
+        QFileDialog::DontUseNativeDialog
     );
 
     if (filePath.isEmpty()) {

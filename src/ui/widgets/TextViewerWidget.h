@@ -33,6 +33,7 @@ public:
     void setText(const QString& text);
     void setTextWithVerses(const QString& text, int startPage);
     QString selectedText() const;
+    void selectRange(int start, int end);
 
     // Update alternating colors from theme
     void updateColors();

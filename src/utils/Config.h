@@ -40,6 +40,19 @@ public:
     QString outputAudioPath() const;
     QString outputVideosPath() const;
 
+    // Session restore
+    bool rememberText() const;
+    QString lastText() const;
+    QString lastTreatiseCode() const;
+    int lastSelectionStart() const;
+    int lastSelectionEnd() const;
+
+    void setRememberText(bool remember);
+    void setLastText(const QString& text);
+    void setLastTreatiseCode(const QString& code);
+    void setLastSelectionStart(int pos);
+    void setLastSelectionEnd(int pos);
+
     // Setters
     void setCodexFilePath(const QString& path);
     void setOutputImagesPath(const QString& path);

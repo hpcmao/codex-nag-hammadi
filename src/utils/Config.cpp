@@ -307,4 +307,61 @@ void Config::setVertexServiceAccountPath(const QString& path) {
     save();
 }
 
+// Session restore methods
+
+bool Config::rememberText() const {
+    return m_config["session"].toObject()["remember_text"].toBool(false);
+}
+
+void Config::setRememberText(bool remember) {
+    QJsonObject session = m_config["session"].toObject();
+    session["remember_text"] = remember;
+    m_config["session"] = session;
+    save();
+}
+
+QString Config::lastText() const {
+    return m_config["session"].toObject()["last_text"].toString();
+}
+
+void Config::setLastText(const QString& text) {
+    QJsonObject session = m_config["session"].toObject();
+    session["last_text"] = text;
+    m_config["session"] = session;
+    save();
+}
+
+QString Config::lastTreatiseCode() const {
+    return m_config["session"].toObject()["last_treatise_code"].toString();
+}
+
+void Config::setLastTreatiseCode(const QString& code) {
+    QJsonObject session = m_config["session"].toObject();
+    session["last_treatise_code"] = code;
+    m_config["session"] = session;
+    save();
+}
+
+int Config::lastSelectionStart() const {
+    return m_config["session"].toObject()["last_selection_start"].toInt(0);
+}
+
+void Config::setLastSelectionStart(int pos) {
+    QJsonObject session = m_config["session"].toObject();
+    session["last_selection_start"] = pos;
+    m_config["session"] = session;
+    save();
+}
+
+int Config::lastSelectionEnd() const {
+    return m_config["session"].toObject()["last_selection_end"].toInt(0);
+}
+
+void Config::setLastSelectionEnd(int pos) {
+    QJsonObject session = m_config["session"].toObject();
+    session["last_selection_end"] = pos;
+    m_config["session"] = session;
+    save();
+}
+
 } // namespace codex::utils
